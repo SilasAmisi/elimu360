@@ -155,7 +155,7 @@ export function StudentPortal() {
         return;
       }
       setFamilyCodeInput("");
-      setFamilyMessage("Code applied. Premium quizzes from your parent subscription are now available.");
+      setFamilyMessage("Code applied. Your parent account is now linked for assessments and progress tracking.");
       setFamilyStatus("idle");
     } catch {
       setFamilyMessage("Could not apply code.");
@@ -239,8 +239,8 @@ export function StudentPortal() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <h2 className="text-lg font-semibold text-slate-900">Family code</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-          If your parent has Premium, they can share a short code with you. Enter it once here to unlock Premium
-          quizzes on your account.
+          If your parent shares a family code, enter it once here to link your account for assessments and progress
+          tracking.
         </p>
         <div className="mt-4 flex max-w-xl flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1">

@@ -29,7 +29,6 @@ type ParentChild = {
 export function ParentPortal() {
   const [studentIdInput, setStudentIdInput] = useState("");
   const [children, setChildren] = useState<ParentChild[]>([]);
-  const [parentPlan, setParentPlan] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [familyCode, setFamilyCode] = useState<string | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
@@ -41,7 +40,6 @@ export function ParentPortal() {
     const response = await fetch("/api/parent/dashboard");
     const data = (await response.json()) as {
       children?: ParentChild[];
-      parentPlan?: string;
       viewerRole?: string;
       error?: string;
     };
@@ -50,7 +48,6 @@ export function ParentPortal() {
       return;
     }
     setChildren(data.children);
-    setParentPlan(data.parentPlan ?? null);
     setViewerRole(data.viewerRole ?? null);
   }
 
@@ -93,12 +90,12 @@ export function ParentPortal() {
   }, []);
 
   useEffect(() => {
-    if (viewerRole === "parent" && parentPlan === "premium") {
+    if (viewerRole === "parent") {
       void loadFamilyCode();
     } else {
       setFamilyCode(null);
     }
-  }, [viewerRole, parentPlan]);
+  }, [viewerRole]);
 
   async function linkChild() {
     const studentId = Number(studentIdInput);
@@ -141,16 +138,11 @@ export function ParentPortal() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
           <h2 className="text-lg font-semibold text-slate-900">Family access code</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            When your account is on Premium, your student can enter this code in their portal to unlock Premium
-            quizzes on their profile.
+            Share this code with your student so they can link their account and start assessments under your family
+            profile.
           </p>
           {viewerRole !== "parent" ? (
             <p className="mt-4 text-sm text-slate-500">Switch to a parent account to use family codes.</p>
-          ) : parentPlan !== "premium" ? (
-            <p className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Premium is required to generate a code. After your plan is upgraded, your code will appear here
-              automatically.
-            </p>
           ) : codeLoading ? (
             <p className="mt-4 text-sm text-slate-600">Loading code…</p>
           ) : familyCode ? (

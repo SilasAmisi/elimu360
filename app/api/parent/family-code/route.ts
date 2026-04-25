@@ -11,10 +11,6 @@ export async function GET() {
       return Response.json({ error: "Parent access required." }, { status: 403 });
     }
 
-    if (user.role === "parent" && user.plan !== "premium") {
-      return Response.json({ error: "Premium subscription required for a family code." }, { status: 403 });
-    }
-
     if (user.role === "admin") {
       return Response.json({ error: "Family codes are only available on parent accounts." }, { status: 403 });
     }

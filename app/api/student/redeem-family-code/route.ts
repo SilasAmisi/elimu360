@@ -24,14 +24,14 @@ export async function POST(req: Request) {
       `SELECT f.parent_id
        FROM family_access_codes f
        JOIN users p ON p.id = f.parent_id
-       WHERE f.code = $1 AND p.role = 'parent' AND p.plan = 'premium'
+       WHERE f.code = $1 AND p.role = 'parent'
        LIMIT 1`,
       [normalized],
     )) as Array<{ parent_id: number }>;
 
     const parentId = rows[0]?.parent_id;
     if (!parentId) {
-      return Response.json({ error: "Invalid code or subscription is not active." }, { status: 400 });
+      return Response.json({ error: "Invalid code." }, { status: 400 });
     }
 
     await sql.query(
@@ -39,6 +39,13 @@ export async function POST(req: Request) {
        VALUES ($1, $2)
        ON CONFLICT (student_id) DO UPDATE SET parent_id = EXCLUDED.parent_id, created_at = NOW()`,
       [user.id, parentId],
+    );
+
+    await sql.query(
+      `INSERT INTO parent_children (parent_id, student_id)
+       VALUES ($1, $2)
+       ON CONFLICT (parent_id, student_id) DO NOTHING`,
+      [parentId, user.id],
     );
 
     return Response.json({ ok: true });

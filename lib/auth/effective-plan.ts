@@ -3,7 +3,7 @@ import type { DbUser } from "@/lib/auth/current-user";
 import type { UserPlan } from "@/lib/domain";
 
 /**
- * Premium quizzes: own plan, or student linked to an active premium parent subscription.
+ * Premium quizzes: own plan, or student linked to any parent via family code.
  */
 export async function getEffectiveQuizPlan(user: DbUser): Promise<UserPlan> {
   if (user.plan === "premium") {
@@ -19,7 +19,6 @@ export async function getEffectiveQuizPlan(user: DbUser): Promise<UserPlan> {
      JOIN users p ON p.id = r.parent_id
      WHERE r.student_id = $1
        AND p.role = 'parent'
-       AND p.plan = 'premium'
      LIMIT 1`,
     [user.id],
   )) as unknown[];

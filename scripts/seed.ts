@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 
-import { CBC_SUBJECTS } from "../lib/domain";
+import { getSubjectsForGrade } from "../lib/domain";
 import { getDatabaseUrl } from "../lib/env";
 import { buildSeedQuestions } from "../lib/seed-data";
 type SqlClient = { query: (query: string, params?: unknown[]) => Promise<unknown> };
@@ -9,7 +9,7 @@ async function ensureSubjects(sql: SqlClient) {
   const grades = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   for (const grade of grades) {
-    for (const name of CBC_SUBJECTS) {
+    for (const name of getSubjectsForGrade(grade)) {
       await sql.query(
         `INSERT INTO subjects (name, grade_level)
          VALUES ($1, $2)
@@ -69,7 +69,7 @@ async function run() {
     await ensureSubjects(sql);
     await seedQuestions(sql);
 
-    console.log("Seed completed for grades 1-12 and all CBC subjects.");
+    console.log("Seed completed for grades 1-12 and grade-appropriate subjects.");
   } finally {
     await pool.end();
   }

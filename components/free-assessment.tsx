@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { CBC_SUBJECTS, type CbcSubject } from "@/lib/domain";
+import { getSubjectsForGrade, type CbcSubject } from "@/lib/domain";
 import { KENYA60_PREVIEW_QUESTIONS } from "@/lib/kenya60-assessment";
 import { buildCbcPreviewPack, type PreviewQuestion } from "@/lib/seed-data";
 
@@ -44,9 +44,14 @@ export function FreeAssessment() {
     return Math.round((correct / questions.length) * 100);
   }, [questions, answers]);
 
+  const gradeSubjects = useMemo(() => getSubjectsForGrade(grade), [grade]);
+  const selectedSubject = gradeSubjects.includes(subject) ? subject : gradeSubjects[0] ?? "Mathematics";
+
   function start() {
     const pack =
-      track === "ke60" ? pickKenya60Pack(5) : buildCbcPreviewPack({ grade, subject, count: 5 });
+      track === "ke60"
+        ? pickKenya60Pack(5)
+        : buildCbcPreviewPack({ grade, subject: selectedSubject, count: 5 });
 
     setQuestions(pack);
     setAnswers({});
@@ -128,7 +133,7 @@ export function FreeAssessment() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 3 - Subject</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {CBC_SUBJECTS.map((name) => (
+                {gradeSubjects.map((name) => (
                   <button
                     key={name}
                     type="button"
@@ -137,7 +142,7 @@ export function FreeAssessment() {
                     className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
                       track === "ke60"
                         ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                        : subject === name
+                        : selectedSubject === name
                           ? "border-emerald-500 bg-emerald-50 text-emerald-900"
                           : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
                     }`}
@@ -166,7 +171,9 @@ export function FreeAssessment() {
             >
               Start assessment
             </button>
-            <p className="mt-2 text-xs text-slate-500">Grade {grade} {track === "cbc" ? `- ${subject}` : "- Kenya@60"}</p>
+            <p className="mt-2 text-xs text-slate-500">
+              Grade {grade} {track === "cbc" ? `- ${selectedSubject}` : "- Kenya@60"}
+            </p>
           </div>
         </div>
       )}
@@ -175,7 +182,7 @@ export function FreeAssessment() {
         <div className="space-y-5 p-6 lg:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
             <span>
-              {track === "ke60" ? "Kenya@60 preview" : `Grade ${grade} - ${subject}`}
+              {track === "ke60" ? "Kenya@60 preview" : `Grade ${grade} - ${selectedSubject}`}
             </span>
             <span>
               Question {index + 1} of {questions.length}

@@ -1,4 +1,4 @@
-import { CBC_SUBJECTS, type CbcSubject } from "./domain";
+import { getSubjectsForGrade, type CbcSubject } from "./domain";
 
 type SeedQuestion = {
   question: string;
@@ -188,7 +188,7 @@ export function buildSeedQuestions() {
   const grades = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   return grades.flatMap((grade) =>
-    CBC_SUBJECTS.flatMap((subject) =>
+    getSubjectsForGrade(grade).flatMap((subject) =>
       TOPICS_BY_SUBJECT[subject].map((topic, idx) => ({
         subject,
         grade,

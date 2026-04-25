@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { getCurrentDbUser } from "@/lib/auth/current-user";
 import { sql } from "@/lib/db";
+import { getSubjectsForGrade } from "@/lib/domain";
 
 const querySchema = z.object({
   grade: z.coerce.number().int().min(1).max(12),
@@ -25,13 +26,19 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const { grade } = querySchema.parse({ grade: url.searchParams.get("grade") });
+    const allowedSubjects = getSubjectsForGrade(grade);
+
+    if (allowedSubjects.length === 0) {
+      return Response.json({ subjects: [] });
+    }
 
     const subjects = (await sql.query(
       `SELECT id, name, grade_level
        FROM subjects
        WHERE grade_level = $1
+         AND name = ANY($2::text[])
        ORDER BY name ASC`,
-      [grade],
+      [grade, allowedSubjects],
     )) as SubjectRow[];
 
     return Response.json({ subjects });
