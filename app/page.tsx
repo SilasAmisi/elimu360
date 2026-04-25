@@ -81,20 +81,10 @@ export default function Home() {
                 </span>
               </li>
             </ul>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-2xl font-semibold text-slate-900">12</p>
-                <p className="text-xs text-slate-500">Grades</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-2xl font-semibold text-slate-900">5Q</p>
-                <p className="text-xs text-slate-500">Free preview</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-2xl font-semibold text-slate-900">3</p>
-                <p className="text-xs text-slate-500">User roles</p>
-              </div>
-            </div>
+            <p className="rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-600">
+              Begin with the free assessment, then continue through student, parent, or teacher workflows after
+              sign-in.
+            </p>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/sign-up"

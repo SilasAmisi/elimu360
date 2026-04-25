@@ -70,7 +70,7 @@ export function FreeAssessment() {
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-emerald-200 bg-gradient-to-r from-emerald-700 to-emerald-600 px-6 py-5 text-white lg:px-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">Free assessment</p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight lg:text-3xl">Try a free 5-question preview</h2>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight lg:text-3xl">Try a free assessment preview</h2>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-50 lg:text-base">
           Choose Grade 1-12 and subject, or switch to Kenya@60 for general family questions. After your score, sign in
           to continue with full quizzes and progress tracking.
@@ -160,7 +160,7 @@ export function FreeAssessment() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 lg:p-6">
             <h3 className="text-base font-semibold text-slate-900">Ready to start?</h3>
             <ul className="mt-4 space-y-2 text-sm text-slate-600">
-              <li>5 questions with instant scoring</li>
+              <li>Instant scoring and feedback</li>
               <li>Preview is free with no account needed</li>
               <li>Continue after sign in or registration</li>
             </ul>
