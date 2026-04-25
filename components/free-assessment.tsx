@@ -62,80 +62,120 @@ export function FreeAssessment() {
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <div className="max-w-3xl">
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Try a free 5-question preview</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">
-          Pick a grade and subject (or try our Kenya@60 family pack). At the end, sign up to save progress and unlock full
-          quizzes, teacher assignments, and parent insights.
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-emerald-200 bg-gradient-to-r from-emerald-700 to-emerald-600 px-6 py-5 text-white lg:px-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">Free assessment</p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight lg:text-3xl">Try a free 5-question preview</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-50 lg:text-base">
+          Choose Grade 1-12 and subject, or switch to Kenya@60 for general family questions. After your score, sign in
+          to continue with full quizzes and progress tracking.
         </p>
       </div>
 
       {phase === "setup" && (
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-800">Grade</span>
-            <select
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
-              value={grade}
-              onChange={(event) => setGrade(Number(event.target.value))}
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((g) => (
-                <option key={g} value={g}>
-                  Grade {g}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="grid gap-8 p-6 lg:grid-cols-[1.25fr_0.75fr] lg:p-8">
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 1 - Grade</p>
+              <div className="mt-2 grid grid-cols-6 gap-2">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGrade(g)}
+                    className={`rounded-lg border px-2 py-2 text-sm font-semibold transition ${
+                      grade === g
+                        ? "border-emerald-600 bg-emerald-600 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50"
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-800">Track</span>
-            <select
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
-              value={track}
-              onChange={(event) => setTrack(event.target.value as Track)}
-            >
-              <option value="cbc">CBC subjects</option>
-              <option value="ke60">Kenya@60 (family pack)</option>
-            </select>
-          </label>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 2 - Track</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setTrack("cbc")}
+                  className={`rounded-xl border px-4 py-3 text-left text-sm ${
+                    track === "cbc"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-950"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+                  }`}
+                >
+                  <p className="font-semibold">CBC subjects</p>
+                  <p className="mt-1 text-xs text-slate-500">Maths, English, Science and more</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrack("ke60")}
+                  className={`rounded-xl border px-4 py-3 text-left text-sm ${
+                    track === "ke60"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-950"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+                  }`}
+                >
+                  <p className="font-semibold">Kenya@60 family pack</p>
+                  <p className="mt-1 text-xs text-slate-500">General questions for parents and learners</p>
+                </button>
+              </div>
+            </div>
 
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-800">Subject</span>
-            <select
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-100"
-              value={subject}
-              disabled={track === "ke60"}
-              onChange={(event) => setSubject(event.target.value as CbcSubject)}
-            >
-              {CBC_SUBJECTS.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            {track === "ke60" && (
-              <p className="text-xs text-slate-500">Kenya@60 uses a fixed general-knowledge pack (not tied to a subject).</p>
-            )}
-          </label>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 3 - Subject</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {CBC_SUBJECTS.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    disabled={track === "ke60"}
+                    onClick={() => setSubject(name)}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                      track === "ke60"
+                        ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                        : subject === name
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-900"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+              {track === "ke60" && (
+                <p className="mt-2 text-xs text-slate-500">Kenya@60 uses a fixed general-knowledge set.</p>
+              )}
+            </div>
+          </div>
 
-          <div className="md:col-span-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 lg:p-6">
+            <h3 className="text-base font-semibold text-slate-900">Ready to start?</h3>
+            <ul className="mt-4 space-y-2 text-sm text-slate-600">
+              <li>5 questions with instant scoring</li>
+              <li>Preview is free with no account needed</li>
+              <li>Continue after sign in or registration</li>
+            </ul>
             <button
               type="button"
               onClick={start}
-              className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto"
+              className="mt-6 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              Start preview
+              Start assessment
             </button>
+            <p className="mt-2 text-xs text-slate-500">Grade {grade} {track === "cbc" ? `- ${subject}` : "- Kenya@60"}</p>
           </div>
         </div>
       )}
 
       {phase === "quiz" && active && (
-        <div className="mt-6 space-y-4">
+        <div className="space-y-5 p-6 lg:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
             <span>
-              {track === "ke60" ? "Kenya@60 preview" : `Grade ${grade} • ${subject}`}
+              {track === "ke60" ? "Kenya@60 preview" : `Grade ${grade} - ${subject}`}
             </span>
             <span>
               Question {index + 1} of {questions.length}
@@ -151,13 +191,13 @@ export function FreeAssessment() {
 
           <p className="text-base font-medium text-slate-900">{active.question}</p>
 
-          <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {active.options.map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => setAnswers((prev) => ({ ...prev, [active.id]: option }))}
-                className={`w-full rounded-xl border px-4 py-3 text-left text-sm ${
+                className={`rounded-xl border px-4 py-3 text-left text-sm ${
                   answers[active.id] === option
                     ? "border-emerald-500 bg-emerald-50"
                     : "border-slate-200 hover:border-slate-300"
@@ -209,7 +249,7 @@ export function FreeAssessment() {
       )}
 
       {phase === "results" && (
-        <div className="mt-6 space-y-5">
+        <div className="space-y-6 p-6 lg:p-8">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
             <p className="text-sm font-semibold text-emerald-900">Preview score</p>
             <p className="mt-2 text-3xl font-semibold text-emerald-950">{score}%</p>
@@ -234,7 +274,8 @@ export function FreeAssessment() {
 
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-900">Review</h3>
-            {questions.map((q) => {
+            <div className="grid gap-3 lg:grid-cols-2">
+              {questions.map((q) => {
               const picked = answers[q.id];
               const correct = picked === q.answer;
               return (
@@ -250,7 +291,8 @@ export function FreeAssessment() {
                   <p className="mt-2 text-slate-600">{q.explanation}</p>
                 </article>
               );
-            })}
+              })}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">

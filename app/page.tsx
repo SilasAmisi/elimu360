@@ -40,75 +40,76 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-16 px-6 py-12 lg:gap-20 lg:px-10 lg:py-16">
-        <section className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-          <div className="space-y-7">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-16 px-6 py-10 lg:gap-20 lg:px-10 lg:py-14">
+        <section className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr] xl:items-start">
+          <div className="space-y-6">
             <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-medium text-emerald-800">
-              CBC • Grades 1–12 • Classroom and home study
+              Grades 1-12 free assessment
             </p>
-            <h1 className="max-w-2xl text-balance text-4xl font-semibold tracking-tight text-slate-900 lg:text-5xl">
-              Smarter revision for Kenyan students — with teachers and parents in the loop.
+            <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight text-slate-900 lg:text-5xl">
+              Start with a free quiz before creating an account.
             </h1>
-            <p className="max-w-xl text-pretty text-lg leading-relaxed text-slate-600">
-              Elimu360 helps learners practise with curriculum-aligned quizzes, tracks weak areas over time,
-              and gives teachers simple class assignments — while parents see progress at a glance.
+            <p className="max-w-3xl text-lg leading-relaxed text-slate-600">
+              Learners and parents can try CBC and Kenya@60 assessment questions immediately. After the preview score,
+              sign in or register to continue with full progress tracking and role-based dashboards.
             </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/student"
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-              >
-                Start practising
-              </Link>
-              <Link
-                href="/teacher"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-              >
-                Teacher tools
-              </Link>
-              <Link
-                href="/parent"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-              >
-                Parent dashboard
-              </Link>
-            </div>
-            <p className="text-sm text-slate-500">
-              Free plan uses a curated question bank. Premium adds AI-assisted quizzes and extended practice.
-            </p>
+            <FreeAssessment />
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              What you get today
-            </h2>
-            <ul className="mt-5 space-y-4 text-sm leading-relaxed text-slate-700 lg:text-[15px]">
+          <aside className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8 xl:sticky xl:top-24">
+            <h2 className="text-base font-semibold uppercase tracking-wide text-slate-500">Platform overview</h2>
+            <ul className="space-y-4 text-sm leading-relaxed text-slate-700">
               <li className="flex gap-3">
                 <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span>
-                  <span className="font-medium text-slate-900">Student portal</span> — pick grade & subject, take quizzes one question at a time, see explanations and progress.
+                  <span className="font-medium text-slate-900">Student portal</span> - quiz by grade and subject, score
+                  reports, and weak-area review.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span>
-                  <span className="font-medium text-slate-900">Teacher panel</span> — class codes, assignments, and class-level performance snapshots.
+                  <span className="font-medium text-slate-900">Teacher panel</span> - class setup, assignments, and
+                  performance snapshots.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span>
-                  <span className="font-medium text-slate-900">Parent view</span> — link children by student ID and follow scores and weak subjects.
+                  <span className="font-medium text-slate-900">Parent dashboard</span> - child linking, family access
+                  code, and progress view.
                 </span>
               </li>
             </ul>
-            <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600 lg:text-sm">
-              After sign-in, use{" "}
-              <span className="font-mono text-slate-800">/student</span>,{" "}
-              <span className="font-mono text-slate-800">/teacher</span>, or{" "}
-              <span className="font-mono text-slate-800">/parent</span> from your browser bookmarks or toolbar.
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-2xl font-semibold text-slate-900">12</p>
+                <p className="text-xs text-slate-500">Grades</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-2xl font-semibold text-slate-900">5Q</p>
+                <p className="text-xs text-slate-500">Free preview</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-2xl font-semibold text-slate-900">3</p>
+                <p className="text-xs text-slate-500">User roles</p>
+              </div>
             </div>
-          </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/sign-up"
+                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Register
+              </Link>
+              <Link
+                href="/sign-in"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              >
+                Sign in
+              </Link>
+            </div>
+          </aside>
         </section>
 
         <section className="grid gap-5 md:grid-cols-3">
@@ -135,8 +136,6 @@ export default function Home() {
             </article>
           ))}
         </section>
-
-        <FreeAssessment />
 
         <SubscriptionPlans />
       </main>
