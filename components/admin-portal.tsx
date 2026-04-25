@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { USER_PLANS, USER_ROLES } from "@/lib/domain";
+
 type AdminStats = {
   total_users: number;
   total_quizzes: number;
@@ -73,6 +75,13 @@ export function AdminPortal() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [editById, setEditById] = useState<Record<number, { role: string; plan: string; grade: string }>>({});
+  const [userSaveStatus, setUserSaveStatus] = useState<"idle" | "loading">("idle");
+  const [subjectName, setSubjectName] = useState("");
+  const [subjectGrade, setSubjectGrade] = useState(7);
+  const [subjectStatus, setSubjectStatus] = useState<"idle" | "loading">("idle");
+  const [subjectMessage, setSubjectMessage] = useState<string | null>(null);
+
   const options = useMemo(
     () => [form.optionA, form.optionB, form.optionC, form.optionD].map((opt) => opt.trim()),
     [form.optionA, form.optionB, form.optionC, form.optionD],
@@ -141,6 +150,91 @@ export function AdminPortal() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const next: Record<number, { role: string; plan: string; grade: string }> = {};
+    for (const u of users) {
+      next[u.id] = {
+        role: u.role,
+        plan: u.plan,
+        grade: u.grade != null ? String(u.grade) : "",
+      };
+    }
+    setEditById(next);
+  }, [users]);
+
+  async function saveUserRow(userId: number) {
+    const draft = editById[userId];
+    if (!draft) return;
+    setUserSaveStatus("loading");
+    setError(null);
+    setSuccess(null);
+    try {
+      const gradePayload =
+        draft.grade.trim() === "" ? null : Number(draft.grade);
+      if (draft.grade.trim() !== "" && (!Number.isInteger(gradePayload) || gradePayload! < 1 || gradePayload! > 12)) {
+        setError("Grade must be between 1 and 12 or empty.");
+        setUserSaveStatus("idle");
+        return;
+      }
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          role: draft.role,
+          plan: draft.plan,
+          grade: gradePayload,
+        }),
+      });
+      const data = (await response.json()) as { user?: UserRow; error?: string };
+      if (!response.ok || !data.user) {
+        setError(data.error ?? "Could not update user.");
+        setUserSaveStatus("idle");
+        return;
+      }
+      setSuccess(`User #${userId} updated.`);
+      await loadOverview();
+    } catch {
+      setError("Could not update user.");
+    } finally {
+      setUserSaveStatus("idle");
+    }
+  }
+
+  async function addSubject() {
+    const name = subjectName.trim();
+    if (name.length < 2) {
+      setSubjectMessage("Enter a subject name.");
+      return;
+    }
+    setSubjectStatus("loading");
+    setSubjectMessage(null);
+    try {
+      const response = await fetch("/api/admin/subjects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, gradeLevel: subjectGrade }),
+      });
+      const data = (await response.json()) as { subject?: { id: number }; message?: string; error?: string };
+      if (!response.ok) {
+        setSubjectMessage(data.error ?? "Request failed.");
+        setSubjectStatus("idle");
+        return;
+      }
+      if (data.subject) {
+        setSubjectMessage("Subject added.");
+        setSubjectName("");
+      } else {
+        setSubjectMessage(data.message ?? "No new row (may already exist).");
+      }
+      await loadSubjects(grade);
+    } catch {
+      setSubjectMessage("Could not add subject.");
+    } finally {
+      setSubjectStatus("idle");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -249,7 +343,7 @@ export function AdminPortal() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pb-12 lg:px-10">
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-900">Usage Overview</h2>
         {!stats ? (
@@ -305,11 +399,14 @@ export function AdminPortal() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Users, Roles and Plans</h2>
-        <div className="mt-3 max-h-80 overflow-auto rounded border border-slate-200">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <h2 className="text-lg font-semibold text-slate-900">Users, roles, and plans</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Changes sync to Clerk when possible. Premium parents automatically receive a family access code for students.
+        </p>
+        <div className="mt-4 max-h-[28rem] overflow-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
               <tr>
                 <th className="px-3 py-2">ID</th>
                 <th className="px-3 py-2">Role</th>
@@ -317,22 +414,90 @@ export function AdminPortal() {
                 <th className="px-3 py-2">Grade</th>
                 <th className="px-3 py-2">School</th>
                 <th className="px-3 py-2">Clerk ID</th>
+                <th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr key={user.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{user.id}</td>
-                  <td className="px-3 py-2">{user.role}</td>
-                  <td className="px-3 py-2">{user.plan}</td>
-                  <td className="px-3 py-2">{user.grade ?? "-"}</td>
-                  <td className="px-3 py-2">{user.school ?? "-"}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{user.clerk_id}</td>
-                </tr>
-              ))}
+              {users.map((user) => {
+                const draft = editById[user.id] ?? {
+                  role: user.role,
+                  plan: user.plan,
+                  grade: user.grade != null ? String(user.grade) : "",
+                };
+                return (
+                  <tr key={user.id} className="border-t border-slate-100 align-top">
+                    <td className="px-3 py-2 font-medium">{user.id}</td>
+                    <td className="px-3 py-2">
+                      <select
+                        className="w-full max-w-[120px] rounded border border-slate-300 px-2 py-1"
+                        value={draft.role}
+                        onChange={(event) =>
+                          setEditById((prev) => ({
+                            ...prev,
+                            [user.id]: { ...draft, role: event.target.value },
+                          }))
+                        }
+                      >
+                        {USER_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        className="w-full max-w-[110px] rounded border border-slate-300 px-2 py-1"
+                        value={draft.plan}
+                        onChange={(event) =>
+                          setEditById((prev) => ({
+                            ...prev,
+                            [user.id]: { ...draft, plan: event.target.value },
+                          }))
+                        }
+                      >
+                        {USER_PLANS.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        className="w-16 rounded border border-slate-300 px-2 py-1"
+                        value={draft.grade}
+                        onChange={(event) =>
+                          setEditById((prev) => ({
+                            ...prev,
+                            [user.id]: { ...draft, grade: event.target.value },
+                          }))
+                        }
+                        placeholder="—"
+                      />
+                    </td>
+                    <td className="max-w-[140px] truncate px-3 py-2 text-slate-600" title={user.school ?? ""}>
+                      {user.school ?? "—"}
+                    </td>
+                    <td className="max-w-[180px] truncate px-3 py-1 font-mono text-xs text-slate-600" title={user.clerk_id}>
+                      {user.clerk_id}
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="rounded bg-slate-900 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                        disabled={userSaveStatus === "loading"}
+                        onClick={() => void saveUserRow(user.id)}
+                      >
+                        Save
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {users.length === 0 && (
                 <tr>
-                  <td className="px-3 py-3 text-slate-600" colSpan={6}>
+                  <td className="px-3 py-3 text-slate-600" colSpan={7}>
                     No users found.
                   </td>
                 </tr>
@@ -340,6 +505,53 @@ export function AdminPortal() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <h2 className="text-lg font-semibold text-slate-900">Add curriculum subject</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Creates a subject row for a grade if it does not already exist (same name and grade).
+        </p>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs font-medium text-slate-500" htmlFor="new-subject-name">
+              Subject name
+            </label>
+            <input
+              id="new-subject-name"
+              value={subjectName}
+              onChange={(event) => setSubjectName(event.target.value)}
+              className="mt-1 block w-56 rounded border border-slate-300 px-3 py-2 text-sm"
+              placeholder="e.g. Agriculture"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500" htmlFor="new-subject-grade">
+              Grade
+            </label>
+            <select
+              id="new-subject-grade"
+              value={subjectGrade}
+              onChange={(event) => setSubjectGrade(Number(event.target.value))}
+              className="mt-1 block rounded border border-slate-300 px-3 py-2 text-sm"
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            disabled={subjectStatus === "loading"}
+            onClick={() => void addSubject()}
+          >
+            Add subject
+          </button>
+        </div>
+        {subjectMessage && <p className="mt-3 text-sm text-slate-700">{subjectMessage}</p>}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">

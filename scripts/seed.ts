@@ -51,9 +51,11 @@ async function seedQuestions(sql: SqlClient) {
 }
 
 async function run() {
+  console.log("Connecting to database…");
   const pool = new Pool({
     connectionString: getDatabaseUrl(),
     ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 15_000,
   });
 
   const sql: SqlClient = {
@@ -67,7 +69,7 @@ async function run() {
     await ensureSubjects(sql);
     await seedQuestions(sql);
 
-    console.log("Seed completed for grades 7-12 and all CBC subjects.");
+    console.log("Seed completed for grades 1-12 and all CBC subjects.");
   } finally {
     await pool.end();
   }

@@ -13,11 +13,11 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto w-full max-w-7xl px-6">
-        <h1 className="text-3xl font-semibold text-slate-900">Admin Panel</h1>
-        <p className="mt-2 text-slate-600">
-          Manage users and plans, platform analytics, and hardcoded question content.
+    <main className="min-h-screen bg-slate-50 py-10">
+      <div className="mx-auto w-full max-w-7xl px-6 lg:px-10">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-900 lg:text-4xl">Admin panel</h1>
+        <p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-600">
+          Platform analytics, user and plan management, curriculum subjects, and hardcoded question authoring.
         </p>
       </div>
       <AdminPortal />

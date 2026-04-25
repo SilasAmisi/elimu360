@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getCurrentDbUser } from "@/lib/auth/current-user";
+import { getEffectiveQuizPlan } from "@/lib/auth/effective-plan";
 import { sql } from "@/lib/db";
 import { generateAiQuestions } from "@/lib/quiz";
 
@@ -54,7 +55,8 @@ export async function POST(req: Request) {
       );
     }
 
-    if (user.plan === "free") {
+    const effectivePlan = await getEffectiveQuizPlan(user);
+    if (effectivePlan === "free") {
       const freeQuestions = (await sql.query(
         `SELECT id, question, options, answer, explanation, source, difficulty
          FROM questions

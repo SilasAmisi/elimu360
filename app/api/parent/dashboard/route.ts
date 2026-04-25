@@ -1,4 +1,5 @@
 import { getCurrentDbUser } from "@/lib/auth/current-user";
+import type { UserPlan, UserRole } from "@/lib/domain";
 import { sql } from "@/lib/db";
 
 type LinkedChild = {
@@ -50,8 +51,11 @@ export async function GET() {
       [user.id],
     )) as LinkedChild[];
 
+    const parentPlan = user.plan as UserPlan;
+    const viewerRole = user.role as UserRole;
+
     if (linkedChildren.length === 0) {
-      return Response.json({ children: [] });
+      return Response.json({ children: [], parentPlan, viewerRole });
     }
 
     const childIds = linkedChildren.map((child) => child.student_id);
@@ -114,7 +118,7 @@ export async function GET() {
       };
     });
 
-    return Response.json({ children });
+    return Response.json({ children, parentPlan, viewerRole });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown server error";
     return Response.json({ error: message }, { status: 500 });

@@ -204,7 +204,7 @@ export function TeacherPortal() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pb-12 lg:px-10">
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-900">Create Class</h2>
         <p className="mt-1 text-sm text-slate-600">Generate a shareable class code for students to join.</p>

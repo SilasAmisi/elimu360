@@ -13,11 +13,11 @@ export default async function ParentPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 py-8">
-      <div className="mx-auto w-full max-w-6xl px-6">
-        <h1 className="text-3xl font-semibold text-slate-900">Parent Dashboard</h1>
-        <p className="mt-2 text-slate-600">
-          Link your children by student ID and track their quiz performance trends.
+    <main className="min-h-screen bg-slate-50 py-10">
+      <div className="mx-auto w-full max-w-7xl px-6 lg:px-10">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-900 lg:text-4xl">Parent dashboard</h1>
+        <p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-600">
+          Share your family code with students on Premium, link children by student ID, and follow quiz performance.
         </p>
       </div>
       <ParentPortal />

@@ -1,5 +1,7 @@
-import type { UserJSON } from "@clerk/backend";
+import type { User, UserJSON } from "@clerk/backend";
 
+import { isBootstrapAdminEmail } from "@/lib/auth/admin-bootstrap";
+import { ensureFamilyAccessCodeForParent } from "@/lib/family-access";
 import { USER_PLANS, USER_ROLES, type UserPlan, type UserRole } from "@/lib/domain";
 import { sql } from "@/lib/db";
 
@@ -9,6 +11,7 @@ type ClerkPublicMetadata = {
   grade?: unknown;
   school?: unknown;
   parentId?: unknown;
+  onboarding_completed?: unknown;
 };
 
 function asRole(value: unknown): UserRole {
@@ -46,15 +49,33 @@ function asParentId(value: unknown): number | null {
   return null;
 }
 
-export async function syncUser(clerkUser: UserJSON) {
-  const metadata = (clerkUser.public_metadata ?? {}) as ClerkPublicMetadata;
-  const role = asRole(metadata.role);
-  const plan = asPlan(metadata.plan);
-  const grade = asGrade(metadata.grade);
-  const school = asSchool(metadata.school);
-  const parentId = asParentId(metadata.parentId);
+function primaryEmailFromUserJson(clerkUser: UserJSON): string | null {
+  const primaryId = clerkUser.primary_email_address_id;
+  const list = clerkUser.email_addresses ?? [];
+  const match = list.find((entry) => entry.id === primaryId);
+  const raw = match?.email_address ?? list[0]?.email_address;
+  return typeof raw === "string" && raw.length > 0 ? raw.toLowerCase() : null;
+}
 
-  await sql.query(
+type SyncUserPayload = {
+  clerkId: string;
+  publicMetadata: ClerkPublicMetadata;
+  primaryEmail: string | null;
+};
+
+export async function syncUserPayload(payload: SyncUserPayload) {
+  let role = asRole(payload.publicMetadata.role);
+  let plan = asPlan(payload.publicMetadata.plan);
+  if (isBootstrapAdminEmail(payload.primaryEmail)) {
+    role = "admin";
+    plan = "premium";
+  }
+
+  const grade = asGrade(payload.publicMetadata.grade);
+  const school = asSchool(payload.publicMetadata.school);
+  const parentId = asParentId(payload.publicMetadata.parentId);
+
+  const rows = (await sql.query(
     `INSERT INTO users (clerk_id, role, plan, grade, school, parent_id)
      VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (clerk_id) DO UPDATE
@@ -63,7 +84,30 @@ export async function syncUser(clerkUser: UserJSON) {
          grade = EXCLUDED.grade,
          school = EXCLUDED.school,
          parent_id = EXCLUDED.parent_id,
-         updated_at = NOW()`,
-    [clerkUser.id, role, plan, grade, school, parentId],
-  );
+         updated_at = NOW()
+     RETURNING id, role, plan`,
+    [payload.clerkId, role, plan, grade, school, parentId],
+  )) as Array<{ id: number; role: UserRole; plan: UserPlan }>;
+
+  const row = rows[0];
+  if (row && row.role === "parent" && row.plan === "premium") {
+    await ensureFamilyAccessCodeForParent(row.id);
+  }
+}
+
+export async function syncUser(clerkUser: UserJSON) {
+  const metadata = (clerkUser.public_metadata ?? {}) as ClerkPublicMetadata;
+  await syncUserPayload({
+    clerkId: clerkUser.id,
+    publicMetadata: metadata,
+    primaryEmail: primaryEmailFromUserJson(clerkUser),
+  });
+}
+
+export async function syncUserFromSdkUser(user: User) {
+  await syncUserPayload({
+    clerkId: user.id,
+    publicMetadata: (user.publicMetadata ?? {}) as ClerkPublicMetadata,
+    primaryEmail: user.primaryEmailAddress?.emailAddress?.toLowerCase() ?? null,
+  });
 }

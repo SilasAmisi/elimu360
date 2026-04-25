@@ -45,6 +45,8 @@ type ProgressResponse = {
   }>;
 };
 
+const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
 export function StudentPortal() {
   const [grade, setGrade] = useState<number>(7);
   const [subjectId, setSubjectId] = useState<number | null>(null);
@@ -57,6 +59,9 @@ export function StudentPortal() {
   const [progress, setProgress] = useState<ProgressResponse | null>(null);
   const [status, setStatus] = useState<"setup" | "loading" | "quiz" | "result">("setup");
   const [error, setError] = useState<string | null>(null);
+  const [familyCodeInput, setFamilyCodeInput] = useState("");
+  const [familyMessage, setFamilyMessage] = useState<string | null>(null);
+  const [familyStatus, setFamilyStatus] = useState<"idle" | "loading">("idle");
 
   const activeQuestion = questions[currentIndex];
   const answeredCount = useMemo(
@@ -128,6 +133,35 @@ export function StudentPortal() {
       cancelled = true;
     };
   }, []);
+
+  async function redeemFamilyCode() {
+    const trimmed = familyCodeInput.trim();
+    if (trimmed.length < 4) {
+      setFamilyMessage("Enter the code from your parent.");
+      return;
+    }
+    setFamilyStatus("loading");
+    setFamilyMessage(null);
+    try {
+      const response = await fetch("/api/student/redeem-family-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+      const data = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setFamilyMessage(data.error ?? "Could not apply code.");
+        setFamilyStatus("idle");
+        return;
+      }
+      setFamilyCodeInput("");
+      setFamilyMessage("Code applied. Premium quizzes from your parent subscription are now available.");
+      setFamilyStatus("idle");
+    } catch {
+      setFamilyMessage("Could not apply code.");
+      setFamilyStatus("idle");
+    }
+  }
 
   async function startQuiz() {
     if (!subjectId) return;
@@ -201,54 +235,105 @@ export function StudentPortal() {
   const selectedSubject = subjects.find((subject) => subject.id === subjectId)?.name ?? "Subject";
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Grade</p>
-            <select
-              className="mt-1 rounded-lg border border-slate-300 px-3 py-2"
-              value={grade}
-              onChange={(event) => setGrade(Number(event.target.value))}
-              disabled={status === "quiz" || status === "loading"}
-            >
-              {[7, 8, 9, 10, 11, 12].map((optionGrade) => (
-                <option key={optionGrade} value={optionGrade}>
-                  Grade {optionGrade}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Subject</p>
-            <select
-              className="mt-1 rounded-lg border border-slate-300 px-3 py-2"
-              value={subjectId ?? ""}
-              onChange={(event) => setSubjectId(Number(event.target.value))}
-              disabled={status === "quiz" || status === "loading" || subjects.length === 0}
-            >
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pb-12 lg:px-10">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <h2 className="text-lg font-semibold text-slate-900">Family code</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+          If your parent has Premium, they can share a short code with you. Enter it once here to unlock Premium
+          quizzes on your account.
+        </p>
+        <div className="mt-4 flex max-w-xl flex-wrap items-end gap-3">
+          <div className="min-w-[220px] flex-1">
+            <label className="text-xs font-medium text-slate-500" htmlFor="family-code">
+              Code from parent
+            </label>
+            <input
+              id="family-code"
+              value={familyCodeInput}
+              onChange={(event) => setFamilyCodeInput(event.target.value)}
+              placeholder="e.g. A1B2C3D4"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm uppercase"
+            />
           </div>
           <button
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={startQuiz}
-            disabled={!subjectId || status === "loading" || status === "quiz"}
+            type="button"
+            onClick={() => void redeemFamilyCode()}
+            disabled={familyStatus === "loading"}
+            className="rounded-lg border border-slate-300 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50"
           >
-            Start Quiz
+            Apply code
           </button>
         </div>
+        {familyMessage && (
+          <p
+            className={`mt-3 rounded-lg px-4 py-2 text-sm ${
+              familyMessage.startsWith("Code applied")
+                ? "bg-emerald-50 text-emerald-800"
+                : "bg-red-50 text-red-800"
+            }`}
+          >
+            {familyMessage}
+          </p>
+        )}
+      </section>
 
+      <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
+        <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Quiz setup</h2>
+          <div className="mt-4 space-y-4">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Grade</p>
+              <select
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                value={grade}
+                onChange={(event) => setGrade(Number(event.target.value))}
+                disabled={status === "quiz" || status === "loading"}
+              >
+                {GRADES.map((optionGrade) => (
+                  <option key={optionGrade} value={optionGrade}>
+                    Grade {optionGrade}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">Subject</p>
+              <select
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                value={subjectId ?? ""}
+                onChange={(event) => setSubjectId(Number(event.target.value))}
+                disabled={status === "quiz" || status === "loading" || subjects.length === 0}
+              >
+                {subjects.map((subject) => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={startQuiz}
+              disabled={!subjectId || status === "loading" || status === "quiz"}
+            >
+              Start quiz
+            </button>
+          </div>
+        </aside>
+
+        <section className="min-h-[420px] rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        {status === "setup" && !error && (
+          <p className="text-sm leading-relaxed text-slate-600">
+            Choose a grade and subject on the left, then start a quiz. Your progress appears below after you finish.
+          </p>
+        )}
 
         {status === "loading" && <p className="text-sm text-slate-600">Loading...</p>}
 
         {status === "quiz" && activeQuestion && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>
                 {selectedSubject} - Grade {grade}
@@ -266,11 +351,12 @@ export function StudentPortal() {
             </div>
 
             <p className="font-medium text-slate-900">{activeQuestion.question}</p>
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {activeQuestion.options.map((option) => (
                 <button
                   key={option}
-                  className={`w-full rounded-lg border px-3 py-2 text-left ${
+                  type="button"
+                  className={`rounded-lg border px-3 py-3 text-left text-sm leading-snug ${
                     answers[activeQuestion.id] === option
                       ? "border-emerald-500 bg-emerald-50"
                       : "border-slate-300 hover:border-slate-400"
@@ -323,19 +409,19 @@ export function StudentPortal() {
         )}
 
         {status === "result" && (
-          <div className="space-y-4">
-            <p className="text-xl font-semibold text-slate-900">Your score: {score}%</p>
+          <div className="space-y-5">
+            <p className="text-2xl font-semibold text-slate-900">Your score: {score}%</p>
             <button
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
               onClick={startQuiz}
             >
               Try another quiz
             </button>
-            <div className="space-y-3">
+            <div className="grid gap-3 lg:grid-cols-2">
               {results.map((result) => (
                 <article
                   key={result.questionId}
-                  className={`rounded-lg border p-3 ${
+                  className={`rounded-lg border p-4 ${
                     result.isCorrect ? "border-emerald-300 bg-emerald-50" : "border-red-200 bg-red-50"
                   }`}
                 >
@@ -350,14 +436,15 @@ export function StudentPortal() {
             </div>
           </div>
         )}
-      </section>
+        </section>
+      </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Progress Tracker</h2>
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <h2 className="text-lg font-semibold text-slate-900">Progress tracker</h2>
         {!progress ? (
           <p className="mt-3 text-sm text-slate-600">No progress yet.</p>
         ) : (
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid gap-6 md:grid-cols-2">
             <div>
               <h3 className="text-sm font-semibold text-slate-700">Recent Quizzes</h3>
               <div className="mt-2 space-y-2">
