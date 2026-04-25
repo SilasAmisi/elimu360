@@ -20,7 +20,7 @@ export async function reconcileBootstrapAdminForUserId(userId: string) {
       publicMetadata: {
         ...meta,
         role: "admin",
-        plan: "premium",
+        plan: "teachers_schools",
         onboarding_completed: true,
       },
     });

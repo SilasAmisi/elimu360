@@ -85,6 +85,15 @@ export default function Home() {
               Begin with the free assessment, then continue through student, parent, or teacher workflows after
               sign-in.
             </p>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-900">How to use Elimu360</h3>
+              <ol className="mt-3 space-y-2 text-sm text-slate-600">
+                <li>1. Take the free assessment on this page to sample the experience.</li>
+                <li>2. Register and choose whether you are a parent/guardian or teacher.</li>
+                <li>3. Select a plan type and continue to your dashboard.</li>
+                <li>4. Link students, assign quizzes, and track progress by grade and subject.</li>
+              </ol>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/sign-up"

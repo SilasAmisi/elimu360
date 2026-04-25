@@ -43,7 +43,7 @@ export async function PATCH(req: Request) {
       [body.userId, role, plan, grade],
     );
 
-    if (role === "parent" && plan === "premium") {
+    if (role === "parent") {
       await ensureFamilyAccessCodeForParent(body.userId);
     }
 

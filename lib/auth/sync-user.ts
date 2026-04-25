@@ -22,6 +22,9 @@ function asRole(value: unknown): UserRole {
 }
 
 function asPlan(value: unknown): UserPlan {
+  if (value === "premium") {
+    return "single_child";
+  }
   if (typeof value === "string" && USER_PLANS.includes(value as UserPlan)) {
     return value as UserPlan;
   }
@@ -68,7 +71,7 @@ export async function syncUserPayload(payload: SyncUserPayload) {
   let plan = asPlan(payload.publicMetadata.plan);
   if (isBootstrapAdminEmail(payload.primaryEmail)) {
     role = "admin";
-    plan = "premium";
+    plan = "teachers_schools";
   }
 
   const grade = asGrade(payload.publicMetadata.grade);
@@ -90,7 +93,7 @@ export async function syncUserPayload(payload: SyncUserPayload) {
   )) as Array<{ id: number; role: UserRole; plan: UserPlan }>;
 
   const row = rows[0];
-  if (row && row.role === "parent" && row.plan === "premium") {
+  if (row && row.role === "parent") {
     await ensureFamilyAccessCodeForParent(row.id);
   }
 }

@@ -1,5 +1,11 @@
 export const USER_ROLES = ["student", "parent", "teacher", "admin"] as const;
-export const USER_PLANS = ["free", "premium"] as const;
+export const USER_PLANS = [
+  "free",
+  "single_child",
+  "family_3_children",
+  "teachers_schools",
+  "one_time_use",
+] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 export type UserPlan = (typeof USER_PLANS)[number];

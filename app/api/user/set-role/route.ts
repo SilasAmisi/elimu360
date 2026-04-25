@@ -1,10 +1,12 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { z } from "zod";
 
+import { USER_PLANS, type UserPlan } from "@/lib/domain";
 import { syncUserFromSdkUser } from "@/lib/auth/sync-user";
 
 const bodySchema = z.object({
   role: z.enum(["student", "parent", "teacher"]),
+  plan: z.enum(USER_PLANS).optional(),
 });
 
 export const runtime = "nodejs";
@@ -19,6 +21,7 @@ export async function POST(req: Request) {
 
     const body = bodySchema.parse(await req.json());
     const role = body.role;
+    const plan = (body.plan ?? "free") as UserPlan;
 
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
@@ -33,6 +36,7 @@ export async function POST(req: Request) {
     }
 
     meta.role = role;
+    meta.plan = plan;
     meta.onboarding_completed = true;
 
     await client.users.updateUser(userId, { publicMetadata: meta });
@@ -40,7 +44,7 @@ export async function POST(req: Request) {
     const refreshed = await client.users.getUser(userId);
     await syncUserFromSdkUser(refreshed);
 
-    return Response.json({ ok: true, role });
+    return Response.json({ ok: true, role, plan });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Invalid payload", details: error.issues }, { status: 400 });

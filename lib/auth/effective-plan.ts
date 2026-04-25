@@ -2,12 +2,16 @@ import { sql } from "@/lib/db";
 import type { DbUser } from "@/lib/auth/current-user";
 import type { UserPlan } from "@/lib/domain";
 
+function isPaidPlan(plan: UserPlan): boolean {
+  return plan !== "free";
+}
+
 /**
- * Premium quizzes: own plan, or student linked to any parent via family code.
+ * Expanded quizzes: own paid plan, or student linked to a parent via family code.
  */
 export async function getEffectiveQuizPlan(user: DbUser): Promise<UserPlan> {
-  if (user.plan === "premium") {
-    return "premium";
+  if (isPaidPlan(user.plan)) {
+    return user.plan;
   }
   if (user.role !== "student") {
     return "free";
@@ -23,5 +27,5 @@ export async function getEffectiveQuizPlan(user: DbUser): Promise<UserPlan> {
     [user.id],
   )) as unknown[];
 
-  return linked.length > 0 ? "premium" : "free";
+  return linked.length > 0 ? "single_child" : "free";
 }

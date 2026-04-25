@@ -14,7 +14,7 @@ export function generateFamilyCode(): string {
 }
 
 /**
- * Ensures a premium parent has a stable family code row (for students to redeem).
+ * Ensures a parent has a stable family code row (for students to redeem).
  */
 export async function ensureFamilyAccessCodeForParent(parentId: number): Promise<string | null> {
   const existing = (await sql.query(`SELECT code FROM family_access_codes WHERE parent_id = $1`, [
