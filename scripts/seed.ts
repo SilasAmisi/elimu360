@@ -20,6 +20,46 @@ async function ensureSubjects(sql: SqlClient) {
   }
 }
 
+async function ensureRoleSeedAccounts(sql: SqlClient) {
+  const seedUsers = [
+    {
+      clerkId: "seed-admin-account",
+      role: "admin",
+      plan: "premium",
+      grade: null,
+      school: "Seed Admin Account",
+    },
+    {
+      clerkId: "seed-parent-account",
+      role: "parent",
+      plan: "free",
+      grade: null,
+      school: "Seed Parent Account",
+    },
+    {
+      clerkId: "seed-teacher-account",
+      role: "teacher",
+      plan: "free",
+      grade: null,
+      school: "Seed Teacher Account",
+    },
+  ] as const;
+
+  for (const user of seedUsers) {
+    await sql.query(
+      `INSERT INTO users (clerk_id, role, plan, grade, school)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (clerk_id) DO UPDATE
+       SET role = EXCLUDED.role,
+           plan = EXCLUDED.plan,
+           grade = EXCLUDED.grade,
+           school = EXCLUDED.school,
+           updated_at = NOW()`,
+      [user.clerkId, user.role, user.plan, user.grade, user.school],
+    );
+  }
+}
+
 async function seedQuestions(sql: SqlClient) {
   const allQuestions = buildSeedQuestions();
 
@@ -67,9 +107,10 @@ async function run() {
 
   try {
     await ensureSubjects(sql);
+    await ensureRoleSeedAccounts(sql);
     await seedQuestions(sql);
 
-    console.log("Seed completed for grades 1-12 and grade-appropriate subjects.");
+    console.log("Seed completed for grades 1-12, grade-appropriate subjects, and role seed accounts.");
   } finally {
     await pool.end();
   }

@@ -5,14 +5,9 @@ import { useState } from "react";
 
 const choices = [
   {
-    role: "student" as const,
-    title: "Student",
-    description: "Take quizzes, track progress, and revise by grade and subject.",
-  },
-  {
     role: "parent" as const,
-    title: "Parent",
-    description: "Link your children, follow scores, and use family access for premium learning.",
+    title: "Parent / Guardian",
+    description: "Link your children, share family code, and follow quiz progress over time.",
   },
   {
     role: "teacher" as const,
@@ -51,7 +46,7 @@ export function OnboardingRolePicker() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {choices.map((item) => (
           <button
             key={item.role}
@@ -66,6 +61,9 @@ export function OnboardingRolePicker() {
           </button>
         ))}
       </div>
+      <p className="text-sm text-slate-500">
+        If you are a student, ask your parent/guardian or teacher to create your access path first.
+      </p>
       {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
     </div>
   );

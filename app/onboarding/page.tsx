@@ -34,7 +34,8 @@ export default async function OnboardingPage() {
       <div className="mx-auto max-w-3xl">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Welcome to Elimu360</h1>
         <p className="mt-3 text-base leading-relaxed text-slate-600">
-          Choose how you will use the platform. You can sign in again later with the same account; this step only runs once.
+          Choose whether you are registering as a teacher or a parent/guardian. You can sign in again later with the
+          same account; this step only runs once.
         </p>
         <div className="mt-10">
           <OnboardingRolePicker />
