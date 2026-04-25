@@ -2,30 +2,56 @@ import Link from "next/link";
 
 const plans = [
   {
-    name: "Free",
-    price: "KES 0",
-    blurb: "Start learning today with curated CBC-style quizzes.",
+    name: "Single Child",
+    price: "KES 300 / month",
+    blurb: "Best for one learner at home with steady weekly practice.",
     features: [
-      "Grade 1–12 subject quizzes",
-      "Curated question bank",
-      "Progress tracking after sign-in",
-      "Family linking for parents",
+      "One active student profile",
+      "Grade-based quizzes and reports",
+      "Parent/guardian dashboard access",
+      "Kenya@60 family assessment pack",
     ],
-    cta: { label: "Create free account", href: "/sign-up" },
+    cta: { label: "Choose single-child plan", href: "/sign-up" },
     highlight: false,
   },
   {
-    name: "Premium",
-    price: "Contact us",
-    blurb: "Unlock AI-generated quizzes with deeper practice and analytics.",
+    name: "Family (3 Children)",
+    price: "KES 800 / month",
+    blurb: "One parent account covering up to three children in one plan.",
     features: [
-      "AI-generated quizzes with periodic refresh",
-      "More variety for revision and exam seasons",
-      "Stronger weak-area signals over time",
-      "Family access code for linked students",
+      "Up to 3 linked student profiles",
+      "Shared family code for student access",
+      "Progress summary across all children",
+      "Good for siblings in different grades",
     ],
-    cta: { label: "Upgrade after sign-in", href: "/sign-in" },
+    cta: { label: "Choose family plan", href: "/sign-up" },
     highlight: true,
+  },
+  {
+    name: "Teachers / Schools",
+    price: "From KES 5,000 / month",
+    blurb: "For classrooms and schools that need assignment and analytics tools.",
+    features: [
+      "Teacher dashboard and class codes",
+      "Assignment workflow and class tracking",
+      "Multi-student access management",
+      "Onboarding support for school teams",
+    ],
+    cta: { label: "Contact for school setup", href: "/sign-in" },
+    highlight: false,
+  },
+  {
+    name: "One-Time Exam Pass",
+    price: "KES 120 / pass",
+    blurb: "Single-use access for focused exam revision sessions.",
+    features: [
+      "One short exam pack redemption",
+      "Timed practice with instant score",
+      "Useful for holiday or mock prep",
+      "No recurring monthly commitment",
+    ],
+    cta: { label: "Get exam pass", href: "/sign-up" },
+    highlight: false,
   },
 ];
 
@@ -37,12 +63,12 @@ export function SubscriptionPlans() {
           Plans for schools and families
         </h2>
         <p className="mt-3 text-base leading-relaxed text-slate-600">
-          Start free and move to Premium when you want expanded practice. Questions about pricing? Use the contact
-          options in your account area after you sign in.
+          Choose the model that fits your learning setup: one child, a family bundle, school usage, or one-time exam
+          practice.
         </p>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+      <div className="mt-10 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
         {plans.map((plan) => (
           <article
             key={plan.name}
