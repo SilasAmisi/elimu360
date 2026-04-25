@@ -8,7 +8,7 @@ type SeedQuestion = {
   difficulty: "easy" | "medium" | "hard";
 };
 
-const TOPICS_BY_SUBJECT: Record<CbcSubject, string[]> = {
+export const TOPICS_BY_SUBJECT: Record<CbcSubject, string[]> = {
   Mathematics: [
     "fractions",
     "algebraic expressions",
@@ -156,8 +156,8 @@ const TOPICS_BY_SUBJECT: Record<CbcSubject, string[]> = {
 };
 
 function difficultyForGrade(grade: number): "easy" | "medium" | "hard" {
-  if (grade <= 8) return "easy";
-  if (grade <= 10) return "medium";
+  if (grade <= 6) return "easy";
+  if (grade <= 9) return "medium";
   return "hard";
 }
 
@@ -185,7 +185,7 @@ function createQuestion(
 }
 
 export function buildSeedQuestions() {
-  const grades = [7, 8, 9, 10, 11, 12];
+  const grades = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   return grades.flatMap((grade) =>
     CBC_SUBJECTS.flatMap((subject) =>
@@ -196,4 +196,27 @@ export function buildSeedQuestions() {
       })),
     ),
   );
+}
+
+export type PreviewQuestion = SeedQuestion & { id: string };
+
+function shuffleInPlace<T>(items: T[]) {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+}
+
+export function buildCbcPreviewPack(params: { grade: number; subject: CbcSubject; count?: number }): PreviewQuestion[] {
+  const count = params.count ?? 5;
+  const topics = [...TOPICS_BY_SUBJECT[params.subject]];
+  shuffleInPlace(topics);
+
+  return topics.slice(0, count).map((topic, idx) => {
+    const base = createQuestion(params.subject, params.grade, topic, idx);
+    return {
+      id: `cbc-${params.grade}-${params.subject}-${topic}-${idx}`,
+      ...base,
+    };
+  });
 }

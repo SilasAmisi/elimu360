@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { FreeAssessment } from "@/components/free-assessment";
+import { SubscriptionPlans } from "@/components/subscription-plans";
+
 export default function Home() {
   return (
     <div className="flex min-h-full flex-1 flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900">
@@ -37,7 +40,7 @@ export default function Home() {
         <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="space-y-6">
             <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
-              Built for CBC • Grades 7–12 first • Works on phones
+              Built for CBC • Grades 1–12 • Works on phones
             </p>
             <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
               Smarter revision for Kenyan students — with teachers and parents in the loop.
@@ -107,7 +110,7 @@ export default function Home() {
           {[
             {
               title: "CBC-first content",
-              body: "Core subjects seeded for senior grades, structured the same way as AI-generated items so the quiz engine stays consistent.",
+              body: "Core subjects seeded across grades, structured the same way as AI-generated items so the quiz engine stays consistent.",
             },
             {
               title: "Weak-area tracking",
@@ -127,6 +130,10 @@ export default function Home() {
             </article>
           ))}
         </section>
+
+        <FreeAssessment />
+
+        <SubscriptionPlans />
       </main>
 
       <footer className="mt-auto border-t border-slate-200 bg-white">

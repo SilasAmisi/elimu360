@@ -6,7 +6,7 @@ import { buildSeedQuestions } from "../lib/seed-data";
 type SqlClient = { query: (query: string, params?: unknown[]) => Promise<unknown> };
 
 async function ensureSubjects(sql: SqlClient) {
-  const grades = [7, 8, 9, 10, 11, 12];
+  const grades = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   for (const grade of grades) {
     for (const name of CBC_SUBJECTS) {
