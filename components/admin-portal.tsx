@@ -44,6 +44,7 @@ type HardcodedQuestion = {
   explanation: string;
   difficulty: "easy" | "medium" | "hard";
   generated_at: string | null;
+  source?: string;
 };
 
 const DEFAULT_FORM = {
@@ -81,6 +82,10 @@ export function AdminPortal() {
   const [subjectGrade, setSubjectGrade] = useState(7);
   const [subjectStatus, setSubjectStatus] = useState<"idle" | "loading">("idle");
   const [subjectMessage, setSubjectMessage] = useState<string | null>(null);
+  const [questionListSource, setQuestionListSource] = useState<"hardcoded" | "ai">("hardcoded");
+  const [generateCount, setGenerateCount] = useState(5);
+  const [generateStatus, setGenerateStatus] = useState<"idle" | "loading">("idle");
+  const [generateMessage, setGenerateMessage] = useState<string | null>(null);
 
   const options = useMemo(
     () => [form.optionA, form.optionB, form.optionC, form.optionD].map((opt) => opt.trim()),
@@ -108,6 +113,15 @@ export function AdminPortal() {
     setPlanBreakdown(data.planBreakdown ?? []);
     setPopularSubjects(data.popularSubjects ?? []);
     setUsers(data.users);
+    const next: Record<number, { role: string; plan: string; grade: string }> = {};
+    for (const user of data.users) {
+      next[user.id] = {
+        role: user.role,
+        plan: user.plan,
+        grade: user.grade != null ? String(user.grade) : "",
+      };
+    }
+    setEditById(next);
   }
 
   async function loadSubjects(nextGrade: number) {
@@ -122,9 +136,9 @@ export function AdminPortal() {
     setSubjectId(data.subjects[0]?.id ?? null);
   }
 
-  async function loadQuestions(nextSubjectId: number, nextGrade: number) {
+  async function loadQuestions(nextSubjectId: number, nextGrade: number, source: "hardcoded" | "ai") {
     const response = await fetch(
-      `/api/admin/questions?subjectId=${nextSubjectId}&grade=${nextGrade}`,
+      `/api/admin/questions?subjectId=${nextSubjectId}&grade=${nextGrade}&source=${source}`,
     );
     const data = (await response.json()) as { questions?: HardcodedQuestion[]; error?: string };
     if (!response.ok || !data.questions) {
@@ -150,18 +164,6 @@ export function AdminPortal() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    const next: Record<number, { role: string; plan: string; grade: string }> = {};
-    for (const u of users) {
-      next[u.id] = {
-        role: u.role,
-        plan: u.plan,
-        grade: u.grade != null ? String(u.grade) : "",
-      };
-    }
-    setEditById(next);
-  }, [users]);
 
   async function saveUserRow(userId: number) {
     const draft = editById[userId];
@@ -199,6 +201,32 @@ export function AdminPortal() {
       setError("Could not update user.");
     } finally {
       setUserSaveStatus("idle");
+    }
+  }
+
+  async function removeSelectedSubject() {
+    if (!subjectId) return;
+    const subject = subjects.find((s) => s.id === subjectId);
+    const label = subject ? `${subject.name} (grade ${subject.grade_level})` : "this subject";
+    if (!window.confirm(`Remove ${label} from the catalog? This deletes its questions, progress links, and related rows.`)) {
+      return;
+    }
+    setSubjectStatus("loading");
+    setSubjectMessage(null);
+    try {
+      const response = await fetch(`/api/admin/subjects?subjectId=${subjectId}`, { method: "DELETE" });
+      const data = (await response.json()) as { deleted?: { name: string }; error?: string };
+      if (!response.ok) {
+        setSubjectMessage(data.error ?? "Could not remove subject.");
+        setSubjectStatus("idle");
+        return;
+      }
+      setSubjectMessage(data.deleted ? `Removed ${data.deleted.name}.` : "Subject removed.");
+      await loadSubjects(grade);
+    } catch {
+      setSubjectMessage("Could not remove subject.");
+    } finally {
+      setSubjectStatus("idle");
     }
   }
 
@@ -259,7 +287,7 @@ export function AdminPortal() {
     async function syncQuestions() {
       if (!subjectId) return;
       try {
-        await loadQuestions(subjectId, grade);
+        await loadQuestions(subjectId, grade, questionListSource);
       } catch {
         if (!cancelled) setQuestions([]);
       }
@@ -268,9 +296,13 @@ export function AdminPortal() {
     return () => {
       cancelled = true;
     };
-  }, [subjectId, grade]);
+  }, [subjectId, grade, questionListSource]);
 
   function fillFromQuestion(question: HardcodedQuestion) {
+    if (question.source === "ai") {
+      setError("AI-generated questions are read-only in this panel.");
+      return;
+    }
     setForm({
       id: question.id,
       question: question.question,
@@ -288,6 +320,30 @@ export function AdminPortal() {
     setForm(DEFAULT_FORM);
     setSuccess(null);
     setError(null);
+  }
+
+  async function generateAiQuestionsFromAdmin() {
+    if (!subjectId) return;
+    setGenerateStatus("loading");
+    setGenerateMessage(null);
+    try {
+      const response = await fetch("/api/admin/questions/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subjectId, grade, count: generateCount }),
+      });
+      const data = (await response.json()) as { ok?: boolean; count?: number; error?: string };
+      if (!response.ok || !data.ok) {
+        setGenerateMessage("Could not generate questions right now. Please try again.");
+        return;
+      }
+      setGenerateMessage(`Saved ${data.count ?? 0} AI question(s) for this subject and grade.`);
+      await loadQuestions(subjectId, grade, questionListSource);
+    } catch {
+      setGenerateMessage("Could not generate questions right now. Please try again.");
+    } finally {
+      setGenerateStatus("idle");
+    }
   }
 
   async function saveQuestion() {
@@ -334,7 +390,7 @@ export function AdminPortal() {
 
       setSuccess(form.id ? "Question updated." : "Question added.");
       clearForm();
-      await loadQuestions(subjectId, grade);
+      await loadQuestions(subjectId, grade, questionListSource);
     } catch {
       setError("Could not save question.");
     } finally {
@@ -508,9 +564,10 @@ export function AdminPortal() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-        <h2 className="text-lg font-semibold text-slate-900">Add curriculum subject</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Subjects per grade</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Creates a subject row for a grade if it does not already exist (same name and grade).
+          Add a subject for a grade when it does not already exist (unique by name and grade). Remove the selected
+          subject to drop it for that grade only — this deletes linked questions and progress for that subject.
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div>
@@ -555,82 +612,176 @@ export function AdminPortal() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Manage Hardcoded Questions</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <select
-            className="rounded border border-slate-300 px-3 py-2"
-            value={grade}
-            onChange={(event) => setGrade(Number(event.target.value))}
+        <h2 className="text-lg font-semibold text-slate-900">Question bank</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Edit the hardcoded bank below, or switch to <span className="font-medium">AI-generated</span> to inspect
+          cached model questions stored for this grade and subject (read-only).
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+              questionListSource === "hardcoded"
+                ? "bg-slate-900 text-white"
+                : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+            }`}
+            onClick={() => {
+              setQuestionListSource("hardcoded");
+              clearForm();
+            }}
           >
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((optionGrade) => (
-              <option key={optionGrade} value={optionGrade}>
-                Grade {optionGrade}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded border border-slate-300 px-3 py-2"
-            value={subjectId ?? ""}
-            onChange={(event) => setSubjectId(Number(event.target.value))}
-          >
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name}
-              </option>
-            ))}
-          </select>
-          <button className="rounded bg-slate-800 px-3 py-2 text-white" onClick={clearForm}>
-            New Question
+            Hardcoded (editable)
           </button>
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+              questionListSource === "ai"
+                ? "bg-violet-700 text-white"
+                : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+            }`}
+            onClick={() => {
+              setQuestionListSource("ai");
+              clearForm();
+            }}
+          >
+            AI-generated (view)
+          </button>
+        </div>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+          <h3 className="text-sm font-semibold text-slate-900">Generate with OpenAI</h3>
+          <p className="mt-1 text-xs text-slate-600">
+            Creates new MCQs for the selected grade and subject and stores them in the AI question bank.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="text-xs font-medium text-slate-500" htmlFor="ai-gen-count">
+                Count (1–10)
+              </label>
+              <input
+                id="ai-gen-count"
+                type="number"
+                min={1}
+                max={10}
+                value={generateCount}
+                onChange={(event) => setGenerateCount(Math.min(10, Math.max(1, Number(event.target.value) || 1)))}
+                className="mt-1 block w-24 rounded border border-slate-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              disabled={generateStatus === "loading" || !subjectId}
+              onClick={() => void generateAiQuestionsFromAdmin()}
+            >
+              {generateStatus === "loading" ? "Generating…" : "Generate & save"}
+            </button>
+          </div>
+          {generateMessage && (
+            <p className="mt-2 text-sm text-slate-700" role="status">
+              {generateMessage}
+            </p>
+          )}
+        </div>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+          <div className="grid flex-1 gap-3 sm:grid-cols-2 md:max-w-xl">
+            <select
+              className="rounded border border-slate-300 px-3 py-2"
+              value={grade}
+              onChange={(event) => setGrade(Number(event.target.value))}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((optionGrade) => (
+                <option key={optionGrade} value={optionGrade}>
+                  Grade {optionGrade}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded border border-slate-300 px-3 py-2"
+              value={subjectId ?? ""}
+              onChange={(event) => setSubjectId(Number(event.target.value))}
+            >
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="rounded bg-slate-800 px-3 py-2 text-white" onClick={clearForm}>
+              New Question
+            </button>
+            <button
+              type="button"
+              className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900 hover:bg-red-100 disabled:opacity-50"
+              disabled={subjectStatus === "loading" || !subjectId}
+              onClick={() => void removeSelectedSubject()}
+            >
+              Remove this subject (grade)
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
+            {questionListSource === "ai" && (
+              <p className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+                Switch to Hardcoded to add or edit questions.
+              </p>
+            )}
             <textarea
               placeholder="Question"
               className="min-h-24 w-full rounded border border-slate-300 px-3 py-2"
               value={form.question}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, question: event.target.value }))}
             />
             <input
               placeholder="Option A"
               className="w-full rounded border border-slate-300 px-3 py-2"
               value={form.optionA}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, optionA: event.target.value }))}
             />
             <input
               placeholder="Option B"
               className="w-full rounded border border-slate-300 px-3 py-2"
               value={form.optionB}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, optionB: event.target.value }))}
             />
             <input
               placeholder="Option C"
               className="w-full rounded border border-slate-300 px-3 py-2"
               value={form.optionC}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, optionC: event.target.value }))}
             />
             <input
               placeholder="Option D"
               className="w-full rounded border border-slate-300 px-3 py-2"
               value={form.optionD}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, optionD: event.target.value }))}
             />
             <input
               placeholder="Answer (must match one option exactly)"
               className="w-full rounded border border-slate-300 px-3 py-2"
               value={form.answer}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, answer: event.target.value }))}
             />
             <textarea
               placeholder="Explanation"
               className="min-h-20 w-full rounded border border-slate-300 px-3 py-2"
               value={form.explanation}
+              disabled={questionListSource === "ai"}
               onChange={(event) => setForm((prev) => ({ ...prev, explanation: event.target.value }))}
             />
             <select
               className="w-full rounded border border-slate-300 px-3 py-2"
               value={form.difficulty}
+              disabled={questionListSource === "ai"}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
@@ -645,7 +796,7 @@ export function AdminPortal() {
             <button
               className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               onClick={saveQuestion}
-              disabled={status === "loading" || !subjectId}
+              disabled={status === "loading" || !subjectId || questionListSource === "ai"}
             >
               {form.id ? "Update Question" : "Add Question"}
             </button>
@@ -656,10 +807,20 @@ export function AdminPortal() {
           <div className="max-h-[560px] space-y-2 overflow-auto rounded border border-slate-200 p-2">
             {questions.map((question) => (
               <article key={question.id} className="rounded border border-slate-200 p-2">
-                <p className="text-sm font-medium text-slate-900">{question.question}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-slate-900">{question.question}</p>
+                  {question.source === "ai" && (
+                    <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-800">
+                      AI
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-xs text-slate-600">Answer: {question.answer}</p>
                 <button
-                  className="mt-2 rounded bg-slate-800 px-2 py-1 text-xs text-white"
+                  type="button"
+                  className="mt-2 rounded bg-slate-800 px-2 py-1 text-xs text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={question.source === "ai"}
+                  title={question.source === "ai" ? "Read-only" : "Load into editor"}
                   onClick={() => fillFromQuestion(question)}
                 >
                   Edit
@@ -667,7 +828,11 @@ export function AdminPortal() {
               </article>
             ))}
             {questions.length === 0 && (
-              <p className="text-sm text-slate-600">No hardcoded questions for this subject/grade yet.</p>
+              <p className="text-sm text-slate-600">
+                {questionListSource === "ai"
+                  ? "No AI-generated questions available yet."
+                  : "No hardcoded questions for this subject/grade yet."}
+              </p>
             )}
           </div>
         </div>

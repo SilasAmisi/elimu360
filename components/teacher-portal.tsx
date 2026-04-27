@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type TeacherClass = {
   id: number;
@@ -35,6 +35,29 @@ type AssignmentResult = {
   weakAreas: string[];
 };
 
+type TeacherOwnedQuestion = {
+  id: number;
+  question: string;
+  options: string[];
+  answer: string;
+  explanation: string;
+  difficulty: string;
+};
+
+const QUESTION_BANK_GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+const TQ_FORM_DEFAULT = {
+  id: 0,
+  question: "",
+  optionA: "",
+  optionB: "",
+  optionC: "",
+  optionD: "",
+  answer: "",
+  explanation: "",
+  difficulty: "medium" as "easy" | "medium" | "hard",
+};
+
 export function TeacherPortal() {
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [selectedClassCode, setSelectedClassCode] = useState<string>("");
@@ -51,6 +74,20 @@ export function TeacherPortal() {
   const [status, setStatus] = useState<"idle" | "loading">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  const [questionBankGrade, setQuestionBankGrade] = useState(7);
+  const [questionBankSubjects, setQuestionBankSubjects] = useState<Subject[]>([]);
+  const [questionBankSubjectId, setQuestionBankSubjectId] = useState<number | null>(null);
+  const [myQuestions, setMyQuestions] = useState<TeacherOwnedQuestion[]>([]);
+  const [tqForm, setTqForm] = useState(TQ_FORM_DEFAULT);
+  const [tqStatus, setTqStatus] = useState<"idle" | "loading">("idle");
+  const [tqError, setTqError] = useState<string | null>(null);
+  const [tqSuccess, setTqSuccess] = useState<string | null>(null);
+
+  const tqOptions = useMemo(
+    () => [tqForm.optionA, tqForm.optionB, tqForm.optionC, tqForm.optionD].map((opt) => opt.trim()),
+    [tqForm.optionA, tqForm.optionB, tqForm.optionC, tqForm.optionD],
+  );
+
   const loadClasses = useCallback(async () => {
     const response = await fetch("/api/teacher/classes");
     const data = (await response.json()) as { classes?: TeacherClass[]; error?: string };
@@ -65,6 +102,32 @@ export function TeacherPortal() {
       setAssignmentGrade(firstClass.grade);
     }
   }, []);
+
+  async function loadQuestionBankSubjects(grade: number) {
+    const response = await fetch(`/api/student/subjects?grade=${grade}`);
+    const data = (await response.json()) as { subjects?: Subject[]; error?: string };
+    if (!response.ok || !data.subjects) {
+      setQuestionBankSubjects([]);
+      setQuestionBankSubjectId(null);
+      return;
+    }
+    setQuestionBankSubjects(data.subjects);
+    setQuestionBankSubjectId(data.subjects[0]?.id ?? null);
+  }
+
+  async function loadMyQuestions(subjectId: number, grade: number) {
+    const response = await fetch(
+      `/api/teacher/questions?subjectId=${subjectId}&grade=${grade}`,
+    );
+    const data = (await response.json()) as { questions?: TeacherOwnedQuestion[]; error?: string };
+    if (!response.ok || !data.questions) {
+      setMyQuestions([]);
+      setTqError(data.error ?? "Could not load your questions.");
+      return;
+    }
+    setMyQuestions(data.questions);
+    setTqError(null);
+  }
 
   async function loadSubjects(grade: number) {
     const response = await fetch(`/api/student/subjects?grade=${grade}`);
@@ -132,6 +195,50 @@ export function TeacherPortal() {
 
   useEffect(() => {
     let cancelled = false;
+    async function syncQuestionBankSubjects() {
+      try {
+        await loadQuestionBankSubjects(questionBankGrade);
+      } catch {
+        if (!cancelled) {
+          setQuestionBankSubjects([]);
+          setQuestionBankSubjectId(null);
+        }
+      }
+    }
+    void syncQuestionBankSubjects();
+    return () => {
+      cancelled = true;
+    };
+  }, [questionBankGrade]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function syncMyQuestions() {
+      if (!questionBankSubjectId) {
+        setMyQuestions([]);
+        return;
+      }
+      try {
+        await loadMyQuestions(questionBankSubjectId, questionBankGrade);
+      } catch {
+        if (!cancelled) setMyQuestions([]);
+      }
+    }
+    void syncMyQuestions();
+    return () => {
+      cancelled = true;
+    };
+  }, [questionBankSubjectId, questionBankGrade]);
+
+  useEffect(() => {
+    const cls = classes.find((c) => c.class_code === selectedClassCode);
+    if (cls) {
+      setQuestionBankGrade(cls.grade);
+    }
+  }, [selectedClassCode, classes]);
+
+  useEffect(() => {
+    let cancelled = false;
     async function syncClassData() {
       if (!selectedClassCode) return;
       try {
@@ -170,6 +277,102 @@ export function TeacherPortal() {
       setError("Could not create class.");
     } finally {
       setStatus("idle");
+    }
+  }
+
+  function clearTqForm() {
+    setTqForm(TQ_FORM_DEFAULT);
+    setTqSuccess(null);
+    setTqError(null);
+  }
+
+  function fillTqFromQuestion(question: TeacherOwnedQuestion) {
+    setTqForm({
+      id: question.id,
+      question: question.question,
+      optionA: question.options[0] ?? "",
+      optionB: question.options[1] ?? "",
+      optionC: question.options[2] ?? "",
+      optionD: question.options[3] ?? "",
+      answer: question.answer,
+      explanation: question.explanation,
+      difficulty: question.difficulty as "easy" | "medium" | "hard",
+    });
+    setTqError(null);
+    setTqSuccess(null);
+  }
+
+  async function saveTeacherQuestion() {
+    if (!questionBankSubjectId) return;
+    const cleaned = tqOptions.filter((o) => o.length > 0);
+    if (cleaned.length !== 4) {
+      setTqError("Provide all four options.");
+      return;
+    }
+    if (!cleaned.includes(tqForm.answer.trim())) {
+      setTqError("Answer must exactly match one of the options.");
+      return;
+    }
+
+    setTqStatus("loading");
+    setTqError(null);
+    setTqSuccess(null);
+    const payload = {
+      id: tqForm.id || undefined,
+      subjectId: questionBankSubjectId,
+      grade: questionBankGrade,
+      question: tqForm.question.trim(),
+      options: cleaned,
+      answer: tqForm.answer.trim(),
+      explanation: tqForm.explanation.trim(),
+      difficulty: tqForm.difficulty,
+    };
+
+    try {
+      const response = await fetch("/api/teacher/questions", {
+        method: tqForm.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { question?: TeacherOwnedQuestion; error?: string };
+      if (!response.ok || !data.question) {
+        setTqError(data.error ?? "Could not save question.");
+        setTqStatus("idle");
+        return;
+      }
+      setTqSuccess(tqForm.id ? "Question updated." : "Question added.");
+      clearTqForm();
+      await loadMyQuestions(questionBankSubjectId, questionBankGrade);
+    } catch {
+      setTqError("Could not save question.");
+    } finally {
+      setTqStatus("idle");
+    }
+  }
+
+  async function deleteTeacherQuestion(questionId: number) {
+    if (!window.confirm("Delete this question? Students will no longer see it in quizzes.")) return;
+    setTqStatus("loading");
+    setTqError(null);
+    try {
+      const response = await fetch(`/api/teacher/questions?questionId=${questionId}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setTqError(data.error ?? "Could not delete.");
+        setTqStatus("idle");
+        return;
+      }
+      setTqSuccess("Question removed.");
+      if (questionBankSubjectId) {
+        await loadMyQuestions(questionBankSubjectId, questionBankGrade);
+      }
+      if (tqForm.id === questionId) clearTqForm();
+    } catch {
+      setTqError("Could not delete question.");
+    } finally {
+      setTqStatus("idle");
     }
   }
 
@@ -256,6 +459,158 @@ export function TeacherPortal() {
               </p>
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">My quiz questions</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Write multiple-choice items for a grade and subject. Students who have joined one of your classes will see
+          up to four of your questions mixed into their quizzes for that subject (alongside the main question bank).
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="text-xs font-medium text-slate-500" htmlFor="tq-grade">
+              Grade
+            </label>
+            <select
+              id="tq-grade"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              value={questionBankGrade}
+              onChange={(event) => setQuestionBankGrade(Number(event.target.value))}
+            >
+              {QUESTION_BANK_GRADES.map((g) => (
+                <option key={g} value={g}>
+                  Grade {g}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500" htmlFor="tq-subject">
+              Subject
+            </label>
+            <select
+              id="tq-subject"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              value={questionBankSubjectId ?? ""}
+              onChange={(event) => setQuestionBankSubjectId(Number(event.target.value))}
+            >
+              {questionBankSubjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
+            <textarea
+              placeholder="Question"
+              className="min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.question}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, question: event.target.value }))}
+            />
+            <input
+              placeholder="Option A"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.optionA}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, optionA: event.target.value }))}
+            />
+            <input
+              placeholder="Option B"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.optionB}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, optionB: event.target.value }))}
+            />
+            <input
+              placeholder="Option C"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.optionC}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, optionC: event.target.value }))}
+            />
+            <input
+              placeholder="Option D"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.optionD}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, optionD: event.target.value }))}
+            />
+            <input
+              placeholder="Correct answer (must match one option exactly)"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.answer}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, answer: event.target.value }))}
+            />
+            <textarea
+              placeholder="Explanation"
+              className="min-h-20 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.explanation}
+              onChange={(event) => setTqForm((prev) => ({ ...prev, explanation: event.target.value }))}
+            />
+            <select
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              value={tqForm.difficulty}
+              onChange={(event) =>
+                setTqForm((prev) => ({
+                  ...prev,
+                  difficulty: event.target.value as "easy" | "medium" | "hard",
+                }))
+              }
+            >
+              <option value="easy">easy</option>
+              <option value="medium">medium</option>
+              <option value="hard">hard</option>
+            </select>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                disabled={tqStatus === "loading" || !questionBankSubjectId}
+                onClick={() => void saveTeacherQuestion()}
+              >
+                {tqForm.id ? "Update question" : "Add question"}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                onClick={clearTqForm}
+              >
+                New question
+              </button>
+            </div>
+            {tqError && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{tqError}</p>}
+            {tqSuccess && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{tqSuccess}</p>}
+          </div>
+
+          <div className="max-h-[480px] space-y-2 overflow-auto rounded border border-slate-200 p-2">
+            {myQuestions.map((q) => (
+              <article key={q.id} className="rounded border border-slate-200 p-2 text-sm">
+                <p className="font-medium text-slate-900">{q.question}</p>
+                <p className="mt-1 text-xs text-slate-600">Answer: {q.answer}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded bg-slate-800 px-2 py-1 text-xs text-white"
+                    onClick={() => fillTqFromQuestion(q)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-800"
+                    onClick={() => void deleteTeacherQuestion(q.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+            {myQuestions.length === 0 && (
+              <p className="text-sm text-slate-600">No questions yet for this grade and subject.</p>
+            )}
+          </div>
         </div>
       </section>
 

@@ -6,6 +6,7 @@ import { sql } from "@/lib/db";
 const querySchema = z.object({
   subjectId: z.coerce.number().int().positive(),
   grade: z.coerce.number().int().min(1).max(12),
+  source: z.enum(["hardcoded", "ai", "all"]).optional().default("hardcoded"),
 });
 
 const questionPayloadSchema = z.object({
@@ -27,6 +28,7 @@ type HardcodedQuestion = {
   explanation: string;
   difficulty: string;
   generated_at: string | null;
+  source: string;
 };
 
 export const runtime = "nodejs";
@@ -48,20 +50,25 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const { subjectId, grade } = querySchema.parse({
+    const { subjectId, grade, source } = querySchema.parse({
       subjectId: url.searchParams.get("subjectId"),
       grade: url.searchParams.get("grade"),
+      source: url.searchParams.get("source") ?? undefined,
     });
 
     const questions = (await sql.query(
-      `SELECT id, question, options, answer, explanation, difficulty, generated_at
+      `SELECT id, question, options, answer, explanation, difficulty, generated_at, source
        FROM questions
        WHERE subject_id = $1
          AND grade = $2
-         AND source = 'hardcoded'
-       ORDER BY id DESC
+         AND (
+           $3::text = 'all'
+           OR ($3::text = 'ai' AND source = 'ai')
+           OR ($3::text = 'hardcoded' AND source = 'hardcoded')
+         )
+       ORDER BY generated_at DESC NULLS LAST, id DESC
        LIMIT 100`,
-      [subjectId, grade],
+      [subjectId, grade, source],
     )) as HardcodedQuestion[];
 
     return Response.json({ questions });

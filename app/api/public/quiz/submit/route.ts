@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { getCurrentDbUser } from "@/lib/auth/current-user";
 import { sql } from "@/lib/db";
 import { pgInt8 } from "@/lib/pg-int";
+import { getStudentFromSessionToken } from "@/lib/student-access";
 
 const responseSchema = z.object({
   questionId: z.coerce.number().int().positive(),
@@ -28,19 +28,20 @@ type DbProgress = {
   weak_areas: unknown;
 };
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 function toWeakAreaArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
 }
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentDbUser();
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const sessionToken = req.headers.get("x-student-session") ?? "";
+    const sessionStudent = await getStudentFromSessionToken(sessionToken);
+    if (!sessionStudent) {
+      return Response.json({ error: "Invalid or expired student session." }, { status: 401 });
     }
 
     const body = submitSchema.parse(await req.json());
@@ -89,12 +90,12 @@ export async function POST(req: Request) {
     const weakAreasFromAttempt = results
       .filter((item) => !item.isCorrect)
       .map((item) => item.question)
-      .slice(0, 8);
+      .slice(0, 5);
 
     await sql.query(
       `INSERT INTO quizzes (student_id, subject_id, grade, questions, score, completed_at)
        VALUES ($1, $2, $3, $4::jsonb, $5, NOW())`,
-      [user.id, body.subjectId, body.grade, JSON.stringify(results), score],
+      [sessionStudent.id, body.subjectId, body.grade, JSON.stringify(results), score],
     );
 
     const progressRows = (await sql.query(
@@ -102,40 +103,38 @@ export async function POST(req: Request) {
        FROM progress
        WHERE student_id = $1 AND subject_id = $2
        LIMIT 1`,
-      [user.id, body.subjectId],
+      [sessionStudent.id, body.subjectId],
     )) as DbProgress[];
 
     const existing = progressRows[0];
     if (!existing) {
       await sql.query(
-        `INSERT INTO progress (
-           student_id, subject_id, total_quizzes, average_score, weak_areas, updated_at
-         ) VALUES ($1, $2, 1, $3, $4::jsonb, NOW())`,
-        [user.id, body.subjectId, score, JSON.stringify(weakAreasFromAttempt)],
+        `INSERT INTO progress (student_id, subject_id, total_quizzes, average_score, weak_areas, updated_at)
+         VALUES ($1, $2, 1, $3, $4::jsonb, NOW())`,
+        [sessionStudent.id, body.subjectId, score, JSON.stringify(weakAreasFromAttempt)],
       );
     } else {
-      const nextTotal = existing.total_quizzes + 1;
-      const nextAverage = Number(
-        ((existing.average_score * existing.total_quizzes + score) / nextTotal).toFixed(2),
+      const newTotal = existing.total_quizzes + 1;
+      const newAverage = Number(
+        ((existing.average_score * existing.total_quizzes + score) / newTotal).toFixed(2),
       );
-      const existingWeakAreas = toWeakAreaArray(existing.weak_areas);
-      const mergedWeakAreas = Array.from(new Set([...weakAreasFromAttempt, ...existingWeakAreas])).slice(0, 10);
+      const mergedWeakAreas = Array.from(
+        new Set([...toWeakAreaArray(existing.weak_areas), ...weakAreasFromAttempt]),
+      ).slice(0, 8);
 
       await sql.query(
         `UPDATE progress
-         SET total_quizzes = $1,
-             average_score = $2,
-             weak_areas = $3::jsonb,
+         SET total_quizzes = $3,
+             average_score = $4,
+             weak_areas = $5::jsonb,
              updated_at = NOW()
-         WHERE student_id = $4 AND subject_id = $5`,
-        [nextTotal, nextAverage, JSON.stringify(mergedWeakAreas), user.id, body.subjectId],
+         WHERE student_id = $1 AND subject_id = $2`,
+        [sessionStudent.id, body.subjectId, newTotal, newAverage, JSON.stringify(mergedWeakAreas)],
       );
     }
 
     return Response.json({
       score,
-      correctCount,
-      total,
       results,
     });
   } catch (error) {

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { getCurrentDbUser } from "@/lib/auth/current-user";
 import { sql } from "@/lib/db";
 import { getQuizQuestionsForSession } from "@/lib/quiz-delivery";
+import { getStudentFromSessionToken } from "@/lib/student-access";
 
 const requestSchema = z.object({
   grade: z.coerce.number().int().min(1).max(12),
@@ -14,9 +14,10 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentDbUser();
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const sessionToken = req.headers.get("x-student-session") ?? "";
+    const sessionStudent = await getStudentFromSessionToken(sessionToken);
+    if (!sessionStudent) {
+      return Response.json({ error: "Invalid or expired student session." }, { status: 401 });
     }
 
     const body = requestSchema.parse(await req.json());
@@ -33,14 +34,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const studentUserId = user.role === "student" ? user.id : null;
-
     const delivered = await getQuizQuestionsForSession({
       subjectId: body.subjectId,
       subjectName,
       grade: body.grade,
-      requesterKey: `user:${user.id}`,
-      studentUserId,
+      requesterKey: `student-session:${sessionStudent.id}`,
+      studentUserId: sessionStudent.id,
     });
 
     return Response.json({
@@ -54,7 +53,6 @@ export async function POST(req: Request) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: "Invalid request payload", details: error.issues }, { status: 400 });
     }
-
     const message = error instanceof Error ? error.message : "Unknown server error";
     return Response.json({ error: message }, { status: 500 });
   }

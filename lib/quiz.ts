@@ -12,7 +12,7 @@ const aiQuestionSchema = z.object({
 });
 
 const aiPayloadSchema = z.object({
-  questions: z.array(aiQuestionSchema).length(10),
+  questions: z.array(aiQuestionSchema).min(1).max(10),
 });
 
 const openAiApiKey = getOpenAiApiKey();
@@ -23,23 +23,28 @@ export type QuizQuestion = z.infer<typeof aiQuestionSchema>;
 export async function generateAiQuestions(params: {
   subjectName: string;
   grade: number;
+  count: number;
 }): Promise<QuizQuestion[]> {
   if (!client) {
     throw new Error("OPENAI_API_KEY is missing; cannot generate AI questions.");
   }
 
+  const count = Math.min(Math.max(params.count, 1), 10);
+
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
+    temperature: 0.4,
+    max_tokens: 1800,
     response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
         content:
-          "You create Kenyan CBC-aligned multiple choice quizzes for grades 7-12. Return strict JSON only.",
+          "You create Kenyan CBC-aligned multiple choice quizzes for grades 1-12. Return strict JSON only. No harmful, sexual, political, or hateful content.",
       },
       {
         role: "user",
-        content: `Generate exactly 10 multiple-choice questions for Grade ${params.grade} ${params.subjectName}.
+        content: `Generate exactly ${count} multiple-choice questions for Grade ${params.grade} ${params.subjectName}.
 Return this JSON shape:
 {
   "questions": [
@@ -53,19 +58,26 @@ Return this JSON shape:
   ]
 }
 Rules:
-- CBC-aligned and age-appropriate.
+- CBC-aligned and age-appropriate for the stated grade (1-12).
 - 4 options each.
 - Answer must exactly match one option.
-- Keep explanations concise.`,
+- Keep explanations concise.
+- Avoid repeating the same question idea.
+- School-safe content only.`,
       },
     ],
   });
 
-  const raw = completion.choices[0]?.message?.content;
+  const raw = completion.choices[0]?.message?.content?.trim();
   if (!raw) {
     throw new Error("OpenAI returned an empty response.");
   }
 
-  const parsed = aiPayloadSchema.parse(JSON.parse(raw));
-  return parsed.questions;
+  const normalized = raw.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+  const parsed = aiPayloadSchema.parse(JSON.parse(normalized));
+  if (parsed.questions.length === 0) {
+    throw new Error("OpenAI returned no questions.");
+  }
+
+  return parsed.questions.slice(0, count);
 }

@@ -63,6 +63,15 @@ async function ensureRoleSeedAccounts(sql: SqlClient) {
 async function seedQuestions(sql: SqlClient) {
   const allQuestions = buildSeedQuestions();
 
+  await sql.query(
+    `DELETE FROM questions
+     WHERE source = 'hardcoded'
+       AND (
+         question LIKE 'Grade %: Which statement is most accurate about %'
+         OR question LIKE 'Grade %: Which option best explains %'
+       )`,
+  );
+
   for (const item of allQuestions) {
     const subjectRows = (await sql.query(
       `SELECT id FROM subjects WHERE name = $1 AND grade_level = $2 LIMIT 1`,

@@ -5,29 +5,48 @@ import { sql } from "@/lib/db";
 type LinkedChild = {
   student_id: number;
   student_label: string;
+  student_public_id: string | null;
   grade: number | null;
 };
 
 type ChildHistory = {
-  student_id: number;
-  quiz_id: number;
+  student_id: number | string;
+  quiz_id: number | string;
   subject: string;
   grade: number;
-  score: number;
+  score: number | string | null;
   completed_at: string | null;
 };
 
 type ChildProgress = {
-  student_id: number;
+  student_id: number | string;
   subject: string;
   total_quizzes: number;
-  average_score: number;
+  average_score: number | string;
   weak_areas: unknown;
+};
+
+type ChildLatestSubjectScore = {
+  student_id: number | string;
+  subject: string;
+  grade: number;
+  score: number | string | null;
 };
 
 function toWeakAreas(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function toNumber(value: unknown): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
 }
 
 export const runtime = "nodejs";
@@ -42,7 +61,8 @@ export async function GET() {
 
     const linkedChildren = (await sql.query(
       `SELECT pc.student_id,
-              COALESCE(u.school, 'Student ' || u.id::text) AS student_label,
+              COALESCE(u.display_name, u.school, 'Student ' || u.id::text) AS student_label,
+              u.student_public_id,
               u.grade
        FROM parent_children pc
        JOIN users u ON u.id = pc.student_id
@@ -79,25 +99,52 @@ export async function GET() {
       [childIds],
     )) as ChildProgress[];
 
+    const latestScoresBySubject = (await sql.query(
+      `SELECT c.student_id, s.name AS subject, s.grade_level AS grade, latest.score
+       FROM (
+         SELECT UNNEST($1::bigint[]) AS student_id
+       ) c
+       JOIN users u ON u.id = c.student_id
+       JOIN subjects s ON u.grade IS NOT NULL AND s.grade_level = u.grade
+       LEFT JOIN LATERAL (
+         SELECT q.score
+         FROM quizzes q
+         WHERE q.student_id = c.student_id
+           AND q.subject_id = s.id
+         ORDER BY q.completed_at DESC NULLS LAST, q.created_at DESC
+         LIMIT 1
+       ) latest ON true
+       ORDER BY c.student_id, s.name`,
+      [childIds],
+    )) as ChildLatestSubjectScore[];
+
     const children = linkedChildren.map((child) => {
       const history = historyRows
-        .filter((row) => row.student_id === child.student_id)
+        .filter((row) => Number(row.student_id) === child.student_id)
         .slice(0, 10)
         .map((row) => ({
-          quizId: row.quiz_id,
+          quizId: Number(row.quiz_id),
           subject: row.subject,
           grade: row.grade,
-          score: row.score,
+          score: toNumberOrNull(row.score),
           completedAt: row.completed_at,
         }));
 
       const progress = progressRows
-        .filter((row) => row.student_id === child.student_id)
+        .filter((row) => Number(row.student_id) === child.student_id)
         .map((row) => ({
           subject: row.subject,
           totalQuizzes: row.total_quizzes,
-          averageScore: row.average_score,
+          averageScore: toNumber(row.average_score),
           weakAreas: toWeakAreas(row.weak_areas),
+        }));
+
+      const latestBySubject = latestScoresBySubject
+        .filter((row) => Number(row.student_id) === child.student_id)
+        .map((row) => ({
+          subject: row.subject,
+          grade: row.grade,
+          recentScore: toNumberOrNull(row.score),
         }));
 
       const weakSubjects = progress
@@ -110,9 +157,11 @@ export async function GET() {
 
       return {
         studentId: child.student_id,
+        studentAccessId: child.student_public_id,
         studentLabel: child.student_label,
         grade: child.grade,
         history,
+        latestBySubject,
         progress,
         weakSubjects,
       };

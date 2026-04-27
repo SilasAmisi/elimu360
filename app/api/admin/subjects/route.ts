@@ -44,3 +44,38 @@ export async function POST(req: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+const deleteQuerySchema = z.object({
+  subjectId: z.coerce.number().int().positive(),
+});
+
+export async function DELETE(req: Request) {
+  try {
+    const admin = await getCurrentDbUser();
+    if (!admin || admin.role !== "admin") {
+      return Response.json({ error: "Admin access required." }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const { subjectId } = deleteQuerySchema.parse({
+      subjectId: url.searchParams.get("subjectId"),
+    });
+
+    const rows = (await sql.query(
+      `DELETE FROM subjects WHERE id = $1 RETURNING id, name, grade_level`,
+      [subjectId],
+    )) as Array<{ id: number; name: string; grade_level: number }>;
+
+    if (!rows[0]) {
+      return Response.json({ error: "Subject not found." }, { status: 404 });
+    }
+
+    return Response.json({ deleted: rows[0] });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return Response.json({ error: "Invalid query parameters", details: error.issues }, { status: 400 });
+    }
+    const message = error instanceof Error ? error.message : "Unknown server error";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}

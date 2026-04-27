@@ -4,14 +4,20 @@ import { useEffect, useState } from "react";
 
 type ParentChild = {
   studentId: number;
+  studentAccessId: string | null;
   studentLabel: string;
   grade: number | null;
   history: Array<{
     quizId: number;
     subject: string;
     grade: number;
-    score: number;
+    score: number | null;
     completedAt: string | null;
+  }>;
+  latestBySubject: Array<{
+    subject: string;
+    grade: number;
+    recentScore: number | null;
   }>;
   progress: Array<{
     subject: string;
@@ -48,7 +54,11 @@ export function ParentPortal() {
       return;
     }
     setChildren(data.children);
-    setViewerRole(data.viewerRole ?? null);
+    const nextRole = data.viewerRole ?? null;
+    setViewerRole(nextRole);
+    if (nextRole !== "parent") {
+      setFamilyCode(null);
+    }
   }
 
   async function loadFamilyCode() {
@@ -90,17 +100,27 @@ export function ParentPortal() {
   }, []);
 
   useEffect(() => {
-    if (viewerRole === "parent") {
+    if (viewerRole !== "parent") return;
+    const timer = setTimeout(() => {
       void loadFamilyCode();
-    } else {
-      setFamilyCode(null);
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [viewerRole]);
 
+  useEffect(() => {
+    function handleManagedStudentsUpdated() {
+      void loadDashboard();
+    }
+    window.addEventListener("elimu:managed-students-updated", handleManagedStudentsUpdated);
+    return () => {
+      window.removeEventListener("elimu:managed-students-updated", handleManagedStudentsUpdated);
+    };
+  }, []);
+
   async function linkChild() {
-    const studentId = Number(studentIdInput);
-    if (!Number.isInteger(studentId) || studentId <= 0) {
-      setError("Enter a valid numeric student ID.");
+    const studentId = studentIdInput.trim().toUpperCase();
+    if (studentId.length < 3) {
+      setError("Enter a valid Student ID, for example STU-00029.");
       return;
     }
 
@@ -114,7 +134,7 @@ export function ParentPortal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId }),
       });
-      const data = (await response.json()) as { ok?: boolean; error?: string };
+      const data = (await response.json()) as { ok?: boolean; studentId?: string; error?: string };
 
       if (!response.ok || !data.ok) {
         setError(data.error ?? "Could not link child.");
@@ -123,7 +143,7 @@ export function ParentPortal() {
       }
 
       setStudentIdInput("");
-      setSuccessMessage(`Child linked successfully (ID: ${studentId}).`);
+      setSuccessMessage(`Child linked successfully (ID: ${data.studentId ?? studentId}).`);
       await loadDashboard();
     } catch {
       setError("Could not link child.");
@@ -138,8 +158,7 @@ export function ParentPortal() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
           <h2 className="text-lg font-semibold text-slate-900">Family access code</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Share this code with your student so they can link their account and start assessments under your family
-            profile.
+            Share this code if your student already has an account and needs to link to your family profile.
           </p>
           {viewerRole !== "parent" ? (
             <p className="mt-4 text-sm text-slate-500">Switch to a parent account to use family codes.</p>
@@ -150,8 +169,8 @@ export function ParentPortal() {
               <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">Share with your student</p>
               <p className="mt-2 font-mono text-2xl font-semibold tracking-widest text-slate-900">{familyCode}</p>
               <p className="mt-2 text-xs text-slate-600">
-                The student signs in, opens the Student portal, and enters this code once under &quot;Family
-                code&quot;.
+                The student opens the Student Access page, then enters this family code under
+                &quot;Code from parent or teacher&quot;.
               </p>
             </div>
           ) : (
@@ -160,9 +179,10 @@ export function ParentPortal() {
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-          <h2 className="text-lg font-semibold text-slate-900">Link a child</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Link an existing student account</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Enter the student&apos;s numeric ID to connect this account to their performance dashboard.
+            Use this only when a learner already has an account. For new learners, create student credentials above
+            and use the Student Access page.
           </p>
           <div className="mt-5 flex flex-wrap items-end gap-3">
             <div className="min-w-[200px] flex-1">
@@ -171,10 +191,10 @@ export function ParentPortal() {
               </label>
               <input
                 id="student-id"
-                type="number"
+                type="text"
                 value={studentIdInput}
-                onChange={(event) => setStudentIdInput(event.target.value)}
-                placeholder="e.g. 12"
+                onChange={(event) => setStudentIdInput(event.target.value.toUpperCase())}
+                placeholder="e.g. STU-00029"
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
               />
             </div>
@@ -197,7 +217,7 @@ export function ParentPortal() {
         <h2 className="text-lg font-semibold text-slate-900">Children overview</h2>
         {children.length === 0 ? (
           <p className="mt-4 text-sm leading-relaxed text-slate-600">
-            No linked children yet. Add a student ID to begin monitoring performance.
+            No linked children yet. Create a student profile above or link an existing Student ID.
           </p>
         ) : (
           <div className="mt-6 space-y-6">
@@ -208,23 +228,30 @@ export function ParentPortal() {
                     {child.studentLabel}{" "}
                     <span className="font-normal text-slate-500">(ID: {child.studentId})</span>
                   </h3>
+                  {child.studentAccessId && (
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Student Access ID: {child.studentAccessId}
+                    </p>
+                  )}
                   <p className="text-sm text-slate-600">Grade {child.grade ?? "Not set"}</p>
                 </div>
 
                 <div className="mt-5 grid gap-6 lg:grid-cols-2">
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-700">Recent quiz history</h4>
+                    <h4 className="text-sm font-semibold text-slate-700">Subjects and latest score</h4>
                     <div className="mt-3 space-y-2">
-                      {child.history.slice(0, 5).map((item) => (
-                        <div key={item.quizId} className="rounded-lg border border-slate-100 p-3 text-sm">
+                      {child.latestBySubject.map((item) => (
+                        <div key={`${child.studentId}-${item.subject}`} className="rounded-lg border border-slate-100 p-3 text-sm">
                           <p className="font-medium text-slate-900">
                             {item.subject} (Grade {item.grade})
                           </p>
-                          <p className="text-slate-600">Score: {item.score}%</p>
+                          <p className="text-slate-600">
+                            Score: {item.recentScore == null ? "Not attempted" : `${item.recentScore.toFixed(2)}%`}
+                          </p>
                         </div>
                       ))}
-                      {child.history.length === 0 && (
-                        <p className="text-sm text-slate-600">No quiz attempts yet.</p>
+                      {child.latestBySubject.length === 0 && (
+                        <p className="text-sm text-slate-600">No subjects available for this student grade yet.</p>
                       )}
                     </div>
                   </div>

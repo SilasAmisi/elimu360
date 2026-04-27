@@ -63,9 +63,11 @@ Request body:
 
 Response:
 
-- `source: "hardcoded"` for free users
-- `source: "ai-cache"` if premium and fresh AI cache exists (<30 days)
-- `source: "ai-fresh"` if premium and newly generated
+- `source: "hardcoded"` when 10 hardcoded items exist for that grade/subject
+- `source: "mixed-cache"` / `mixed-fresh` when hardcoded is topped up from cached or new AI rows
+- `source: "ai-fresh"` when only AI items are available
+- `source: "limited"` when fewer than 10 questions exist and AI generation is blocked or fails (see `warning`)
+- AI rows are cached in `questions` for 30 days; new generation is rate-limited via `ai_usage_guardrails`
 
 `POST /api/quiz/submit`
 

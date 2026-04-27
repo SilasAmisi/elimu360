@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Subject = {
   id: number;
@@ -62,12 +62,23 @@ export function StudentPortal() {
   const [familyCodeInput, setFamilyCodeInput] = useState("");
   const [familyMessage, setFamilyMessage] = useState<string | null>(null);
   const [familyStatus, setFamilyStatus] = useState<"idle" | "loading">("idle");
+  const [quizWarning, setQuizWarning] = useState<string | null>(null);
+  const [answerFeedback, setAnswerFeedback] = useState<
+    Record<number, { isCorrect: boolean; correctAnswer: string; explanation: string }>
+  >({});
+  const [checkStatus, setCheckStatus] = useState<"idle" | "loading">("idle");
+  const feedbackRef = useRef<HTMLDivElement | null>(null);
 
   const activeQuestion = questions[currentIndex];
   const answeredCount = useMemo(
     () => questions.filter((question) => Boolean(answers[question.id])).length,
     [questions, answers],
   );
+  const feedbackCount = useMemo(() => Object.keys(answerFeedback).length, [answerFeedback]);
+  const quizProgress = useMemo(() => {
+    if (questions.length === 0) return 0;
+    return Math.min(1, feedbackCount / questions.length);
+  }, [questions.length, feedbackCount]);
 
   async function loadProgress() {
     const response = await fetch("/api/student/progress");
@@ -111,6 +122,12 @@ export function StudentPortal() {
       cancelled = true;
     };
   }, [grade]);
+
+  useEffect(() => {
+    if (!activeQuestion) return;
+    if (!answerFeedback[activeQuestion.id]) return;
+    feedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [activeQuestion?.id, answerFeedback]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,6 +185,7 @@ export function StudentPortal() {
 
     setStatus("loading");
     setError(null);
+    setQuizWarning(null);
 
     const response = await fetch("/api/quiz", {
       method: "POST",
@@ -176,36 +194,118 @@ export function StudentPortal() {
     });
     const data = (await response.json()) as {
       questions?: QuizQuestion[];
+      warning?: string;
       error?: string;
     };
 
-    if (!response.ok || !data.questions) {
+    if (!response.ok || !data.questions?.length) {
       setStatus("setup");
       setError(data.error ?? "Could not start quiz.");
       return;
     }
 
+    setQuizWarning(typeof data.warning === "string" ? data.warning : null);
     setQuestions(data.questions);
     setAnswers({});
+    setAnswerFeedback({});
     setResults([]);
     setScore(null);
     setCurrentIndex(0);
     setStatus("quiz");
   }
 
+  async function evaluateQuestion(question: QuizQuestion) {
+    if (!subjectId) return false;
+    if (answerFeedback[question.id]) return true;
+    const selected = answers[question.id];
+    if (!selected) {
+      setError("Pick an answer first.");
+      return false;
+    }
+    setCheckStatus("loading");
+    setError(null);
+    try {
+      const response = await fetch("/api/quiz/check-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionId: question.id,
+          subjectId,
+          grade,
+          selectedOption: selected,
+        }),
+      });
+      const data = (await response.json()) as {
+        isCorrect?: boolean;
+        correctAnswer?: string;
+        explanation?: string;
+        error?: string;
+      };
+      if (!response.ok || typeof data.isCorrect !== "boolean" || !data.correctAnswer || !data.explanation) {
+        setError(data.error ?? "Could not check answer.");
+        setCheckStatus("idle");
+        return false;
+      }
+      setAnswerFeedback((prev) => ({
+        ...prev,
+        [question.id]: {
+          isCorrect: data.isCorrect!,
+          correctAnswer: data.correctAnswer!,
+          explanation: data.explanation!,
+        },
+      }));
+      return true;
+    } catch {
+      setError("Could not check answer.");
+      return false;
+    } finally {
+      setCheckStatus("idle");
+    }
+  }
+
+  async function handleQuizPrimaryAction() {
+    if (!activeQuestion) return;
+    const fb = answerFeedback[activeQuestion.id];
+    if (!fb) {
+      await evaluateQuestion(activeQuestion);
+      return;
+    }
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex((prev) => Math.min(questions.length - 1, prev + 1));
+      return;
+    }
+    await submitQuiz();
+  }
+
+  function primaryQuizButtonLabel() {
+    if (!activeQuestion) return "";
+    const fb = answerFeedback[activeQuestion.id];
+    if (checkStatus === "loading" && !fb) return "Checking…";
+    if (!fb) return "Show result";
+    if (currentIndex < questions.length - 1) return "Next question";
+    return "Submit quiz";
+  }
+
   async function submitQuiz() {
     if (!subjectId || questions.length === 0) return;
+    if (activeQuestion) {
+      const checked = await evaluateQuestion(activeQuestion);
+      if (!checked) return;
+    }
+    const allChecked = questions.every((q) => answerFeedback[q.id]);
+    if (!allChecked) {
+      setError("Use Show result on each question, then Next question, before submitting.");
+      return;
+    }
 
     setStatus("loading");
     const payload = {
       grade,
       subjectId,
-      responses: questions
-        .filter((question) => Boolean(answers[question.id]))
-        .map((question) => ({
-          questionId: question.id,
-          selectedOption: answers[question.id],
-        })),
+      responses: questions.map((question) => ({
+        questionId: question.id,
+        selectedOption: answers[question.id] ?? "",
+      })),
     };
 
     const response = await fetch("/api/quiz/submit", {
@@ -239,13 +339,13 @@ export function StudentPortal() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <h2 className="text-lg font-semibold text-slate-900">Family code</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-          If your parent shares a family code, enter it once here to link your account for assessments and progress
-          tracking.
+          Enter the code you get from your parent or teacher. If you received a Student ID + access code pair, use the
+          Student Access page to sign in and start your quiz.
         </p>
         <div className="mt-4 flex max-w-xl flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1">
             <label className="text-xs font-medium text-slate-500" htmlFor="family-code">
-              Code from parent
+              Code from parent or teacher
             </label>
             <input
               id="family-code"
@@ -334,6 +434,9 @@ export function StudentPortal() {
 
         {status === "quiz" && activeQuestion && (
           <div className="space-y-5">
+            {quizWarning && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{quizWarning}</p>
+            )}
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>
                 {selectedSubject} - Grade {grade}
@@ -343,66 +446,104 @@ export function StudentPortal() {
               </span>
             </div>
 
-            <div className="h-2 rounded bg-slate-200">
+            <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
               <div
-                className="h-2 rounded bg-emerald-600 transition-all"
-                style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-[width] duration-300"
+                style={{ width: `${quizProgress * 100}%` }}
               />
             </div>
+            <p className="text-xs text-slate-500">Reviewed with feedback: {feedbackCount}/{questions.length}</p>
 
             <p className="font-medium text-slate-900">{activeQuestion.question}</p>
             <div className="grid gap-2 sm:grid-cols-2">
-              {activeQuestion.options.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`rounded-lg border px-3 py-3 text-left text-sm leading-snug ${
-                    answers[activeQuestion.id] === option
-                      ? "border-emerald-500 bg-emerald-50"
-                      : "border-slate-300 hover:border-slate-400"
-                  }`}
-                  onClick={() =>
-                    setAnswers((prev) => ({
-                      ...prev,
-                      [activeQuestion.id]: option,
-                    }))
-                  }
-                >
-                  {option}
-                </button>
-              ))}
+              {activeQuestion.options.map((option) => {
+                const selected = answers[activeQuestion.id] === option;
+                const fb = answerFeedback[activeQuestion.id];
+                const isCorrectOpt = fb && option === fb.correctAnswer;
+                const isWrongPick = fb && selected && !fb.isCorrect && option === answers[activeQuestion.id];
+                const base =
+                  "rounded-lg border px-3 py-3 text-left text-sm leading-snug transition-colors disabled:cursor-default";
+                let cls = "border-slate-300 hover:border-slate-400";
+                if (fb) {
+                  if (isCorrectOpt) cls = "border-emerald-500 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-200";
+                  else if (isWrongPick) cls = "border-red-400 bg-red-50 text-red-950";
+                  else cls = "border-slate-100 bg-slate-50 text-slate-400";
+                } else if (selected) {
+                  cls = "border-indigo-500 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-100";
+                }
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    disabled={Boolean(fb)}
+                    className={`${base} ${cls}`}
+                    onClick={() =>
+                      setAnswers((prev) => ({
+                        ...prev,
+                        [activeQuestion.id]: option,
+                      }))
+                    }
+                  >
+                    {option}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            {answerFeedback[activeQuestion.id] && (
+              <div
+                ref={feedbackRef}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  answerFeedback[activeQuestion.id].isCorrect
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                    : "border-red-200 bg-red-50 text-red-900"
+                }`}
+              >
+                <p className="font-semibold">
+                  {answerFeedback[activeQuestion.id].isCorrect ? "Correct!" : "Incorrect — see explanation."}
+                </p>
+                {!answerFeedback[activeQuestion.id].isCorrect && (
+                  <p className="mt-1">
+                    Correct answer:{" "}
+                    <span className="font-medium">{answerFeedback[activeQuestion.id].correctAnswer}</span>
+                  </p>
+                )}
+                <p className="mt-1 text-slate-700">{answerFeedback[activeQuestion.id].explanation}</p>
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500">
+              Tap <span className="font-medium text-slate-700">Show result</span> for feedback, then{" "}
+              <span className="font-medium text-slate-700">Next question</span> when you are ready.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-slate-500">
                 Answered: {answeredCount}/{questions.length}
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
+                  type="button"
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   disabled={currentIndex === 0}
                   onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                 >
                   Previous
                 </button>
-                {currentIndex < questions.length - 1 ? (
-                  <button
-                    className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white"
-                    onClick={() =>
-                      setCurrentIndex((prev) => Math.min(questions.length - 1, prev + 1))
-                    }
-                  >
-                    Next
-                  </button>
-                ) : (
-                  <button
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
-                    onClick={submitQuiz}
-                    disabled={answeredCount === 0}
-                  >
-                    Submit Quiz
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
+                    answerFeedback[activeQuestion.id] && currentIndex === questions.length - 1
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-slate-900 hover:bg-slate-800"
+                  }`}
+                  disabled={
+                    checkStatus === "loading" ||
+                    (!answerFeedback[activeQuestion.id] && !answers[activeQuestion.id])
+                  }
+                  onClick={() => void handleQuizPrimaryAction()}
+                >
+                  {primaryQuizButtonLabel()}
+                </button>
               </div>
             </div>
           </div>
